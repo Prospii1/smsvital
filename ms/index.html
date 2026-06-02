@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Numr — SMS Activation Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="styles.css"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="stage"></div>
+
+<script type="text/babel" src="data.jsx"></script>
+<script type="text/babel" src="components.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="mobile-screens-1.jsx"></script>
+<script type="text/babel" src="mobile-screens-2.jsx"></script>
+<script type="text/babel" src="mobile-screens-3.jsx"></script>
+<script type="text/babel" src="mobile-app.jsx"></script>
+<script type="text/babel" src="admin-1.jsx"></script>
+<script type="text/babel" src="admin-2.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const ACCENTS = {
+  violet: { a:'#8b5cf6', b:'#b39dff', soft:'rgba(139,92,246,0.14)', line:'rgba(139,92,246,0.40)', glow:'rgba(139,92,246,0.55)' },
+  green:  { a:'#22c55e', b:'#5ef0a0', soft:'rgba(34,197,94,0.14)',  line:'rgba(34,197,94,0.40)',  glow:'rgba(34,197,94,0.5)' },
+  blue:   { a:'#3b82f6', b:'#7db0ff', soft:'rgba(59,130,246,0.14)', line:'rgba(59,130,246,0.40)', glow:'rgba(59,130,246,0.5)' },
+  orange: { a:'#f97316', b:'#ffb070', soft:'rgba(249,115,22,0.14)', line:'rgba(249,115,22,0.40)', glow:'rgba(249,115,22,0.5)' },
+};
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accent": "orange",
+  "otpArrival": "flip",
+  "homeLayout": "list",
+  "scanlines": true
+}/*EDITMODE-END*/;
+
+function applyAccent(key) {
+  const a = ACCENTS[key] || ACCENTS.violet;
+  const r = document.documentElement.style;
+  r.setProperty('--accent', a.a);
+  r.setProperty('--accent-bright', a.b);
+  r.setProperty('--accent-soft', a.soft);
+  r.setProperty('--accent-line', a.line);
+  r.setProperty('--accent-glow', a.glow);
+}
+
+function Stage() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [mode, setMode] = useState('app'); // app | admin
+
+  useEffect(() => applyAccent(t.accent), [t.accent]);
+  useEffect(() => {
+    document.body.classList.toggle('no-grid', !t.scanlines);
+  }, [t.scanlines]);
+
+  return (
+    <ToastHost>
+      <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', padding:'30px 20px 60px' }}>
+        {/* header + toggle */}
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:18, marginBottom:30 }}>
+          <div style={{ textAlign:'center' }}>
+            <div className="eyebrow" style={{ marginBottom:8 }}>Prototype · dark · terminal</div>
+            <h1 style={{ margin:0, fontSize:30, fontWeight:700, letterSpacing:'-0.02em' }}>
+              numr <span style={{ color:'var(--txt-3)', fontWeight:400 }}>— phone verification platform</span>
+            </h1>
+          </div>
+          <div style={{ display:'flex', gap:5, padding:5, background:'var(--surface)', borderRadius:13, boxShadow:'inset 0 0 0 1px var(--line)' }}>
+            {[['app','User App','phone'],['admin','Admin Console','grid']].map(([id,l,ic])=>(
+              <button key={id} onClick={()=>setMode(id)} className="btn" style={{
+                gap:8, padding:'10px 18px', borderRadius:9, fontSize:13.5, fontWeight:600,
+                background: mode===id?'var(--accent)':'transparent',
+                color: mode===id?'#0a0612':'var(--txt-2)',
+                boxShadow: mode===id?'0 0 18px -4px var(--accent-glow)':'none' }}>
+                <Icon name={ic} size={17} stroke={mode===id?'#0a0612':'currentColor'}/>{l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* content */}
+        {mode==='app' ? (
+          <div style={{ display:'flex', alignItems:'flex-start', gap:46, flexWrap:'wrap', justifyContent:'center' }}>
+            <IOSDevice dark>
+              <div style={{ height:'100%', paddingTop:52, boxSizing:'border-box' }}>
+                <MobileApp tweaks={t}/>
+              </div>
+            </IOSDevice>
+            <div style={{ maxWidth:280, paddingTop:30 }} className="hint-col">
+              <div className="eyebrow" style={{ marginBottom:12 }}>Try the hero flow</div>
+              <ol style={{ margin:0, padding:0, listStyle:'none', display:'flex', flexDirection:'column', gap:14 }}>
+                {[
+                  ['Browse','Tap a service, pick a country.'],
+                  ['Buy','Confirm — a live number is assigned instantly.'],
+                  ['Watch it arrive','The SMS code animates in after ~7s, with a toast & haptic.'],
+                  ['Copy & done','One tap copies the code; refund if no SMS.'],
+                ].map(([h,d],i)=>(
+                  <li key={i} style={{ display:'flex', gap:12 }}>
+                    <span className="mono" style={{ width:24, height:24, flexShrink:0, borderRadius:8, background:'var(--accent-soft)', color:'var(--accent-bright)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, boxShadow:'inset 0 0 0 1px var(--accent-line)' }}>{i+1}</span>
+                    <div>
+                      <div style={{ fontSize:14, fontWeight:600 }}>{h}</div>
+                      <div style={{ fontSize:12.5, color:'var(--txt-3)', marginTop:2, lineHeight:1.45 }}>{d}</div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              <div style={{ marginTop:22, padding:14, borderRadius:13, background:'var(--surface)', boxShadow:'inset 0 0 0 1px var(--line)' }}>
+                <div style={{ fontSize:12.5, color:'var(--txt-2)', lineHeight:1.5 }}>
+                  Open the <b style={{ color:'var(--txt)' }}>Tweaks</b> panel (toolbar) to switch accent color, OTP arrival animation, and home layout.
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ width:'min(1180px, 96vw)', height:'min(760px, 82vh)', borderRadius:18, overflow:'hidden',
+            boxShadow:'0 40px 100px -30px rgba(0,0,0,0.8), inset 0 0 0 1px var(--line-2)' }}>
+            <AdminConsole tweaks={t}/>
+          </div>
+        )}
+      </div>
+
+      <TweaksPanel>
+        <TweakSection label="Appearance"/>
+        <TweakColor label="Accent" value={ACCENTS[t.accent].a}
+          options={['#8b5cf6','#22c55e','#3b82f6','#f97316']}
+          onChange={(c)=>{ const k=Object.keys(ACCENTS).find(k=>ACCENTS[k].a===c)||'violet'; setTweak('accent',k); }}/>
+        <TweakToggle label="Terminal grid" value={t.scanlines} onChange={v=>setTweak('scanlines',v)}/>
+        <TweakSection label="Hero flow"/>
+        <TweakRadio label="OTP arrival" value={t.otpArrival}
+          options={['pop','flip','type']} onChange={v=>setTweak('otpArrival',v)}/>
+        <TweakSection label="Home screen"/>
+        <TweakRadio label="Layout" value={t.homeLayout}
+          options={['list','grid']} onChange={v=>setTweak('homeLayout',v)}/>
+      </TweaksPanel>
+    </ToastHost>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('stage')).render(<Stage/>);
+</script>
+</body>
+</html>

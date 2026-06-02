@@ -1,11 +1,7 @@
-@import "tailwindcss";
-
-@theme inline {
-  --color-background: var(--bg);
-  --color-foreground: var(--txt);
-  --font-sans: var(--sans);
-  --font-mono: var(--mono);
-}
+/* ============================================================
+   Numr — SMS Activation Platform prototype
+   Design system: dark · high-contrast · terminal · neon-violet
+   ============================================================ */
 
 :root {
   /* surfaces (cool near-black) */
@@ -21,12 +17,12 @@
   --txt-2: #98a0b0;
   --txt-3: #5f6675;
 
-  /* accent */
-  --accent:        #f97316;
-  --accent-bright: #ffb070;
-  --accent-soft:   rgba(249,115,22,0.14);
-  --accent-line:   rgba(249,115,22,0.40);
-  --accent-glow:   rgba(249,115,22,0.5);
+  /* accent — overridden by Tweaks at runtime */
+  --accent:        #8b5cf6;
+  --accent-bright: #b39dff;
+  --accent-soft:   rgba(139,92,246,0.14);
+  --accent-line:   rgba(139,92,246,0.40);
+  --accent-glow:   rgba(139,92,246,0.55);
 
   /* semantic (share chroma w/ accent family) */
   --ok:   #34e0a1;
@@ -40,8 +36,8 @@
   --r-lg: 20px;
   --r-xl: 26px;
 
-  --mono: var(--font-jetbrains-mono), ui-monospace, 'SF Mono', Menlo, monospace;
-  --sans: var(--font-space-grotesk), -apple-system, system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --sans: 'Space Grotesk', -apple-system, system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -53,15 +49,14 @@ html, body {
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  overflow-x: clip; /* clip instead of hidden — doesn't create a scroll container, so position:sticky works */
 }
 
 /* ---- presentation stage ---- */
 #stage {
   min-height: 100vh;
   background:
-    radial-gradient(900px 600px at 18% -10%, rgba(249,115,22,0.10), transparent 60%),
-    radial-gradient(800px 700px at 100% 0%, rgba(249,115,22,0.06), transparent 55%),
+    radial-gradient(900px 600px at 18% -10%, rgba(139,92,246,0.10), transparent 60%),
+    radial-gradient(800px 700px at 100% 0%, rgba(139,92,246,0.06), transparent 55%),
     var(--bg);
 }
 
@@ -200,101 +195,3 @@ body.no-grid .tgrid::before { display: none; }
 
 /* sparkbar */
 .sb { background: var(--accent); border-radius: 3px 3px 0 0; opacity:.85; transition: height .4s ease; }
-
-/* beams canvas wrapper */
-.beams-container { position: relative; width: 100%; height: 100%; }
-
-/* marquee */
-@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-.marquee-track { overflow: hidden; }
-.marquee-inner {
-  display: flex; width: max-content;
-  animation: marquee 32s linear infinite;
-}
-.marquee-inner:hover { animation-play-state: paused; }
-
-/* landing feature card hover */
-.lcard { transition: transform .2s ease, border-color .2s ease; }
-.lcard:hover { transform: translateY(-4px); border-color: var(--accent-line) !important; }
-
-/* landing nav link */
-.lnav { color: var(--txt-3); font-size: 14px; font-weight: 500; text-decoration: none; transition: color .15s; }
-.lnav:hover { color: var(--txt); }
-
-/* FAQ accordion */
-.faq-q { cursor: pointer; user-select: none; list-style: none; }
-.faq-q::-webkit-details-marker { display: none; }
-
-/* gradient animated text */
-@keyframes gradShift {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-.grad-text {
-  background: linear-gradient(135deg, var(--accent-bright), #fb923c, #fde68a, var(--accent-bright));
-  background-size: 300% auto;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: gradShift 5s ease infinite;
-}
-
-/* float animation for hero card */
-@keyframes heroFloat { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-12px); } }
-.hero-float { animation: heroFloat 5s ease-in-out infinite; }
-
-/* scroll-reveal fade-up */
-@keyframes fadeUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:none; } }
-.fade-up { animation: fadeUp .6s ease both; }
-
-/* ── dashboard responsive shell ── */
-.dash-shell { display: flex; min-height: 100vh; }
-
-.dash-sidebar {
-  width: 228px; flex-shrink: 0;
-  position: fixed; top: 0; left: 0; height: 100vh;
-  background: var(--surface); border-right: 1px solid var(--line);
-  display: flex; flex-direction: column; overflow-y: auto;
-  z-index: 40;
-}
-
-.dash-content {
-  flex: 1; margin-left: 228px;
-  height: 100vh; overflow-y: auto;  /* own scroll container → sticky works reliably */
-}
-.dash-inner   { max-width: 940px; margin: 0 auto; padding-bottom: 20px; }
-
-/* tab bar hidden on desktop */
-.dash-tabbar { display: none !important; }
-/* topbar logo hidden on desktop — sidebar already has it */
-.dash-topbar-logo { display: none !important; }
-
-@media (max-width: 1024px) {
-  .dash-sidebar       { display: none; }
-  .dash-content       { margin-left: 0; height: auto; overflow-y: visible; }
-  .dash-inner         { max-width: 480px; padding-bottom: 66px; }
-  .dash-tabbar        { display: flex !important; }
-  .dash-topbar-logo   { display: flex !important; }
-}
-
-/* ── desktop: browse/services 2-col grid ── */
-.svc-grid { display: flex; flex-direction: column; gap: 7px; }
-@media (min-width: 1025px) {
-  .svc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-}
-
-/* ── desktop: home 2-col hero layout ── */
-.dash-home-cols { padding: 0 18px; }
-@media (min-width: 1025px) {
-  .dash-home-cols {
-    display: grid;
-    grid-template-columns: 1fr 360px;
-    gap: 40px;
-    align-items: start;
-    padding: 0 32px;
-  }
-}
-
-/* ── desktop: narrow form pages (settings) ── */
-.dash-narrow { max-width: 600px; }
