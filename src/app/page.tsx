@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { SERVICES, COUNTRIES, priceFor, availFor } from '@/lib/data';
+import { Monogram, fmt } from '@/components/ui/Primitives';
 
 /* Dynamic import keeps Three.js off the server */
 const Beams = dynamic(() => import('@/components/ui/Beams'), {
@@ -87,35 +89,6 @@ function FaqItem({ q, a }: { q: string; a: string }) {
   );
 }
 
-/* ── live verification ticker ── */
-const TICK_DATA = [
-  { svc: 'Telegram',  cc: 'India',         code: '748291', c: '#3aa0e0' },
-  { svc: 'WhatsApp',  cc: 'Indonesia',      code: '512083', c: '#34e0a1' },
-  { svc: 'OpenAI',    cc: 'United States',  code: '903447', c: '#34e0a1' },
-  { svc: 'Discord',   cc: 'Ukraine',        code: '228810', c: '#7d83f0' },
-  { svc: 'Instagram', cc: 'Brazil',         code: '661924', c: '#d8569b' },
-  { svc: 'Google',    cc: 'Nigeria',        code: '334709', c: '#e0863a' },
-  { svc: 'TikTok',    cc: 'Philippines',    code: '095742', c: '#6f6cf0' },
-  { svc: 'Facebook',  cc: 'Vietnam',        code: '872130', c: '#3a7fe0' },
-  { svc: 'Tinder',    cc: 'Russia',         code: '415983', c: '#f0566f' },
-  { svc: 'Steam',     cc: 'Germany',        code: '239015', c: '#7aa0c9' },
-];
-
-/* ── services data ── */
-const SERVICES_DATA = [
-  { name: 'Telegram',  c: '#3aa0e0', from: '$0.17', tag: 'Most popular' },
-  { name: 'WhatsApp',  c: '#34e0a1', from: '$0.40', tag: '' },
-  { name: 'Google',    c: '#e0863a', from: '$0.29', tag: '' },
-  { name: 'Instagram', c: '#d8569b', from: '$0.52', tag: '' },
-  { name: 'OpenAI',    c: '#34e0a1', from: '$1.14', tag: 'Popular' },
-  { name: 'Discord',   c: '#7d83f0', from: '$0.25', tag: '' },
-  { name: 'TikTok',    c: '#6f6cf0', from: '$0.46', tag: '' },
-  { name: 'Facebook',  c: '#3a7fe0', from: '$0.22', tag: '' },
-  { name: 'Tinder',    c: '#f0566f', from: '$0.87', tag: '' },
-  { name: 'Uber',      c: '#c9d1dc', from: '$0.58', tag: '' },
-  { name: 'PayPal',    c: '#3a6fe0', from: '$1.00', tag: '' },
-  { name: 'Steam',     c: '#7aa0c9', from: '$0.32', tag: '' },
-];
 
 /* ── testimonials ── */
 const TESTIMONIALS = [
@@ -126,7 +99,7 @@ const TESTIMONIALS = [
     stars: 5,
   },
   {
-    quote: "Needed a US OpenAI account. Sorted it in under two minutes. At $1.62 I honestly expected something to go wrong — it didn't. The code came through in about 8 seconds.",
+    quote: "Needed a US OpenAI account. Sorted it in under two minutes. At ₦2,600 I honestly expected something to go wrong — it didn't. The code came through in about 8 seconds.",
     name: "Kwame A.",
     role: "Researcher, Accra",
     stars: 5,
@@ -139,16 +112,7 @@ const TESTIMONIALS = [
   },
 ];
 
-/* ── pricing table ── */
-const PRICE_EXAMPLES = [
-  { svc: 'Telegram',  cc: 'India',        price: '$0.17', note: 'Cheapest option' },
-  { svc: 'Discord',   cc: 'Ukraine',      price: '$0.25', note: '' },
-  { svc: 'WhatsApp',  cc: 'Indonesia',    price: '$0.40', note: 'Most popular combo' },
-  { svc: 'Instagram', cc: 'Brazil',       price: '$0.52', note: '' },
-  { svc: 'OpenAI',    cc: 'United States',price: '$1.62', note: '' },
-];
-
-/* ── SVC monogram ── */
+/* ── SVC monogram (fallback, no logo) ── */
 function Mono({ name, c, size = 44 }: { name: string; c: string; size?: number }) {
   return (
     <div style={{
@@ -166,6 +130,42 @@ function Mono({ name, c, size = 44 }: { name: string; c: string; size?: number }
 ═══════════════════════════════════════════════════════════ */
 export default function LandingPage() {
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [catalog, setCatalog] = useState<any>(null);
+
+  useEffect(() => {
+    fetch('/api/sms/catalog').then(r => r.json()).then(setCatalog).catch(() => {});
+  }, []);
+
+  const services = catalog?.services || SERVICES;
+
+  const numbersLive = useMemo(() => {
+    if (!catalog?.prices) return null;
+    return Object.values(catalog.prices as Record<string, any>).reduce((s: number, e: any) => s + (e.count ?? 0), 0);
+  }, [catalog]);
+
+  // Cheapest price per service (across all countries)
+  function cheapestPrice(svc: any): number {
+    if (catalog?.prices) {
+      const vals = COUNTRIES.map(cc => catalog.prices[`${svc.smspvaCode}_${cc.smspvaCode}`]?.price ?? priceFor(svc, cc));
+      return Math.min(...vals);
+    }
+    return Math.min(...COUNTRIES.map(cc => priceFor(svc, cc)));
+  }
+
+  // Top 5 cheapest combos for the price table
+  const priceExamples = useMemo(() => {
+    const combos: { svc: any; cc: any; price: number }[] = [];
+    for (const svc of services) {
+      for (const cc of COUNTRIES) {
+        const entry = catalog?.prices?.[`${svc.smspvaCode}_${cc.smspvaCode}`];
+        const price = entry?.price ?? priceFor(svc, cc);
+        const count = entry?.count ?? availFor(svc, cc);
+        if (count < 50) continue;
+        combos.push({ svc, cc, price });
+      }
+    }
+    return combos.sort((a, b) => a.price - b.price).slice(0, 5);
+  }, [catalog, services]);
 
   return (
     <div style={{ background: 'var(--bg)', color: 'var(--txt)', fontFamily: 'var(--sans)', overflowX: 'hidden' }}>
@@ -262,7 +262,7 @@ export default function LandingPage() {
               marginBottom: 32, flexWrap: 'wrap', justifyContent: 'center', rowGap: 6 }}>
               {[
                 { icon: 'bolt', label: 'Code in under 10s' },
-                { icon: 'globe', label: '150+ countries' },
+                { icon: 'globe', label: `${COUNTRIES.length} countries` },
                 { icon: 'lock', label: 'Zero personal info' },
               ].map(({ icon, label }, i) => (
                 <span key={icon} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -306,7 +306,11 @@ export default function LandingPage() {
 
             {/* micro-stats */}
             <div style={{ display: 'flex', gap: 32, justifyContent: 'center', flexWrap: 'wrap' }}>
-              {[['600+','services'],['150+','countries'],['~9s','avg. delivery'],['92%','success rate']].map(([v,l])=>(
+              {[
+                [String(services.length), 'services'],
+                [String(COUNTRIES.length), 'countries'],
+                [numbersLive ? numbersLive.toLocaleString() : '…', 'numbers live'],
+              ].map(([v, l]) => (
                 <div key={l} style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent-bright)',
                     fontFamily: 'var(--mono)', letterSpacing: '-0.02em' }}>{v}</div>
@@ -318,24 +322,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ══ MARQUEE — live verifications ════════════════════ */}
-      <div style={{ background: 'var(--surface)', borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)', padding: '16px 0', overflow: 'hidden' }}>
-        <div className="marquee-inner">
-          {[...TICK_DATA, ...TICK_DATA].map((item, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10,
-              padding: '0 28px', flexShrink: 0, borderRight: '1px solid var(--line)' }}>
-              <Mono name={item.svc} c={item.c} size={28}/>
-              <span style={{ fontWeight: 600, fontSize: 13.5, whiteSpace: 'nowrap' }}>{item.svc}</span>
-              <span style={{ color: 'var(--txt-3)', fontSize: 12 }}>·</span>
-              <span style={{ color: 'var(--txt-3)', fontSize: 13, whiteSpace: 'nowrap' }}>{item.cc}</span>
-              <span style={{ color: 'var(--txt-3)', fontSize: 12 }}>·</span>
-              <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--ok)',
-                fontSize: 13, letterSpacing: '0.08em' }}>{item.code}</span>
-              <span style={{ display: 'flex', color: 'var(--ok)', marginLeft: 2 }}><Ic n="check" size={14}/></span>
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* ══ PROBLEM ══════════════════════════════════════════ */}
       <section style={{ padding: '100px 24px', background: 'var(--bg)' }}>
@@ -413,7 +399,7 @@ export default function LandingPage() {
               { n: '02', icon: 'globe', title: 'Pick a country',
                 body: 'Numbers are from real carriers in real countries. Some platforms require a specific country. Prices vary by country, so you can pick the cheapest available option.' },
               { n: '03', icon: 'lock', title: 'Top up your wallet',
-                body: 'Minimum top-up is $1. Pay via Flutterwave — card, bank transfer, USSD, or mobile money. Your balance is credited instantly.' },
+                body: 'Minimum top-up is ₦500. Pay via Flutterwave — card, bank transfer, USSD, or mobile money. Your balance is credited instantly.' },
               { n: '04', icon: 'phone', title: 'Buy the number',
                 body: 'One click. A real phone number is assigned to your account immediately. Go enter it in the app you\'re trying to verify on.' },
               { n: '05', icon: 'bolt', title: 'Grab your code — usually in under 10 seconds',
@@ -450,36 +436,36 @@ export default function LandingPage() {
             marginBottom: 40, gap: 16, flexWrap: 'wrap' }}>
             <div>
               <div style={{ fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '0.18em',
-                textTransform: 'uppercase', color: 'var(--txt-3)', marginBottom: 12 }}>600+ supported</div>
+                textTransform: 'uppercase', color: 'var(--txt-3)', marginBottom: 12 }}>{services.length} platforms</div>
               <h2 style={{ margin: 0, fontSize: 'clamp(24px, 3.5vw, 38px)', fontWeight: 800, letterSpacing: '-0.02em' }}>
                 Popular platforms
               </h2>
             </div>
             <Link href="/signup" style={{ display: 'inline-flex', alignItems: 'center', gap: 6,
               fontSize: 14, fontWeight: 600, color: 'var(--accent-bright)', textDecoration: 'none' }}>
-              Browse all 600+ <Ic n="chevR" size={16}/>
+              Browse all <Ic n="chevR" size={16}/>
             </Link>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-            {SERVICES_DATA.map(svc => (
-              <Link key={svc.name} href="/signup" className="lcard" style={{
+            {services.slice(0, 24).map((svc: any, i: number) => (
+              <Link key={svc.id} href="/signup" className="lcard" style={{
                 display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
                 borderRadius: 14, border: '1px solid var(--line)', background: 'var(--surface)',
                 textDecoration: 'none', color: 'var(--txt)', position: 'relative', overflow: 'hidden',
               }}>
-                {svc.tag && (
+                {i === 0 && (
                   <div style={{ position: 'absolute', top: 8, right: 8, fontSize: 10, fontWeight: 700,
                     padding: '2px 7px', borderRadius: 999, background: 'var(--accent-soft)',
                     color: 'var(--accent-bright)', fontFamily: 'var(--mono)', letterSpacing: '0.04em' }}>
-                    {svc.tag}
+                    Most popular
                   </div>
                 )}
-                <Mono name={svc.name} c={svc.c} size={40}/>
+                <Monogram svc={svc} size={40}/>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{svc.name}</div>
                   <div style={{ fontSize: 12, color: 'var(--txt-3)', marginTop: 2, fontFamily: 'var(--mono)' }}>
-                    from {svc.from}
+                    from {fmt(cheapestPrice(svc))}
                   </div>
                 </div>
               </Link>
@@ -537,10 +523,9 @@ export default function LandingPage() {
         <div style={{ maxWidth: 1160, margin: '0 auto',
           display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 40, textAlign: 'center' }}>
           {[
-            { target: 148000, suffix: '+', label: 'Active numbers right now' },
-            { target: 600,    suffix: '+', label: 'Supported platforms' },
-            { target: 150,    suffix: '+', label: 'Countries covered' },
-            { target: 2400000,suffix: '+', label: 'SMS codes delivered' },
+            { target: numbersLive ?? 0, suffix: '+', label: 'Active numbers right now' },
+            { target: services.length,  suffix: '',  label: 'Supported platforms' },
+            { target: COUNTRIES.length, suffix: '',  label: 'Countries covered' },
           ].map(s => (
             <div key={s.label}>
               <div style={{ fontSize: 'clamp(32px, 4vw, 52px)', fontWeight: 900, color: 'var(--accent-bright)',
@@ -613,8 +598,8 @@ export default function LandingPage() {
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 36 }}>
               {[
-                ["Numbers start at", "$0.17"],
-                ["Minimum top-up",   "$1.00"],
+                ["Numbers start at", "₦ 200"],
+                ["Minimum top-up",   "₦ 500"],
                 ["Refund on failure","100% automatic"],
                 ["Monthly fee",      "None, ever"],
               ].map(([l, v]) => (
@@ -630,7 +615,7 @@ export default function LandingPage() {
               padding: '14px 26px', borderRadius: 12, fontSize: 15, fontWeight: 700,
               background: 'var(--accent)', color: '#0a0612', textDecoration: 'none',
               boxShadow: '0 4px 24px -6px var(--accent-glow)' }}>
-              Start with $1 <Ic n="chevR" size={17} stroke="#0a0612"/>
+              Get started free <Ic n="chevR" size={17} stroke="#0a0612"/>
             </Link>
           </div>
 
@@ -651,20 +636,20 @@ export default function LandingPage() {
                 </tr>
               </thead>
               <tbody>
-                {PRICE_EXAMPLES.map((r, i) => (
-                  <tr key={r.svc + r.cc} className="trow" style={{ borderBottom: i < PRICE_EXAMPLES.length - 1 ? '1px solid var(--line)' : 'none' }}>
+                {priceExamples.map(({ svc, cc, price }, i) => (
+                  <tr key={svc.id + cc.id} className="trow" style={{ borderBottom: i < priceExamples.length - 1 ? '1px solid var(--line)' : 'none' }}>
                     <td style={{ padding: '14px 20px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                        <Mono name={r.svc} c={SERVICES_DATA.find(s => s.name === r.svc)?.c ?? '#888'} size={28}/>
-                        <span style={{ fontWeight: 600, fontSize: 14 }}>{r.svc}</span>
+                        <Monogram svc={svc} size={28}/>
+                        <span style={{ fontWeight: 600, fontSize: 14 }}>{svc.name}</span>
                       </div>
                     </td>
                     <td style={{ padding: '14px 20px', color: 'var(--txt-3)', fontSize: 13.5 }}>
-                      {r.cc}
-                      {r.note && <span style={{ display: 'block', fontSize: 11, color: 'var(--accent-bright)', marginTop: 2 }}>{r.note}</span>}
+                      {cc.name}
+                      {i === 0 && <span style={{ display: 'block', fontSize: 11, color: 'var(--accent-bright)', marginTop: 2 }}>Cheapest option</span>}
                     </td>
                     <td style={{ padding: '14px 20px', fontFamily: 'var(--mono)', fontWeight: 700,
-                      fontSize: 15, color: 'var(--accent-bright)' }}>{r.price}</td>
+                      fontSize: 15, color: 'var(--accent-bright)' }}>{fmt(price)}</td>
                   </tr>
                 ))}
               </tbody>

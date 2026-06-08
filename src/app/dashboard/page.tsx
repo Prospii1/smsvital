@@ -5,29 +5,55 @@ import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { Icon, Monogram, Badge, fmt, fmtBig } from "@/components/ui/Primitives";
 import { useApp } from "@/components/Providers";
-import { SERVICES, COUNTRIES, priceFor, availFor, svcById, ccById } from "@/lib/data";
-
-/* cheapest service+country combos with reasonable supply */
-function bestDeals(limit = 6) {
-  const combos: { svc: any; cc: any; price: number; avail: number }[] = [];
-  for (const svc of SERVICES) {
-    for (const cc of COUNTRIES) {
-      const avail = availFor(svc, cc);
-      if (avail < 50) continue;
-      combos.push({ svc, cc, price: priceFor(svc, cc), avail });
-    }
-  }
-  return combos.sort((a, b) => a.price - b.price).slice(0, limit);
-}
+import { COUNTRIES, priceFor, availFor, svcById, ccById } from "@/lib/data";
 
 export default function HomeScreen() {
-  const { tweaks, orders } = useApp();
+  const { tweaks, orders, catalog, services } = useApp();
   const router = useRouter();
 
+  // Live best deals from catalog, fallback to static
+  const deals = useMemo(() => {
+    const combos: { svc: any; cc: any; price: number; avail: number }[] = [];
+    for (const svc of services) {
+      for (const cc of COUNTRIES) {
+        const entry = catalog?.prices?.[`${svc.smspvaCode}_${cc.smspvaCode}`];
+        const price = entry?.price ?? priceFor(svc, cc);
+        const avail = entry?.count ?? availFor(svc, cc);
+        if (avail < 50) continue;
+        combos.push({ svc, cc, price, avail });
+      }
+    }
+    return combos.sort((a, b) => a.price - b.price).slice(0, 6);
+  }, [catalog, services]);
+
+  // Real stats
+  const numbersLive = useMemo(() => {
+    if (!catalog?.prices) return null;
+    const total = Object.values(catalog.prices as Record<string, any>).reduce((s, e) => s + (e.count ?? 0), 0);
+    return total > 0 ? total : null;
+  }, [catalog]);
+
+  const successRate = useMemo(() => {
+    if (!orders.length) return null;
+    const received = orders.filter((o: any) => o.status === "received").length;
+    return Math.round((received / orders.length) * 100);
+  }, [orders]);
+
   const trendingIds = ["tg", "wa", "go", "oa", "ig", "di"];
-  const trending = trendingIds.map(id => svcById(id)).filter(Boolean);
-  const deals = useMemo(() => bestDeals(6), []);
+  const trending = trendingIds.map(id => svcById(id, services)).filter(Boolean);
   const recentOrders = orders.slice(0, 3);
+
+  function cheapestFor(svc: any): number {
+    if (!catalog?.prices) return priceFor(svc, COUNTRIES[0]);
+    const vals = COUNTRIES.map(cc => catalog.prices[`${svc.smspvaCode}_${cc.smspvaCode}`]?.price).filter((v: any) => v > 0);
+    return vals.length ? Math.min(...vals) : priceFor(svc, COUNTRIES[0]);
+  }
+
+  function cheapestCountCount(svc: any): number {
+    if (!catalog?.prices) return svc.avail ?? 0;
+    const best = COUNTRIES.map(cc => catalog.prices[`${svc.smspvaCode}_${cc.smspvaCode}`]).filter(Boolean).sort((a: any, b: any) => a.price - b.price)[0];
+    return best?.count ?? svc.avail ?? 0;
+  }
 
   return (
     <div className="screen-in" style={{ paddingTop: 10 }}>
@@ -50,10 +76,14 @@ export default function HomeScreen() {
               background: "var(--surface)", boxShadow: "inset 0 0 0 1px var(--line-2)",
               borderRadius: 14, color: "var(--txt-3)" }}>
               <Icon name="search" size={19}/>
-              <span style={{ fontSize: 14.5 }}>Search 600+ services…</span>
+              <span style={{ fontSize: 14.5 }}>Search {services.length}+ services…</span>
             </button>
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              {[["148k","numbers live"],["~9s","avg. delivery"],["92%","success rate"]].map(([n,l]) => (
+              {[
+                [numbersLive ? fmtBig(numbersLive) : "…", "numbers live"],
+                [String(services.length), "services"],
+                [successRate !== null ? `${successRate}%` : "—", "success rate"],
+              ].map(([n, l]) => (
                 <div key={l} className="card" style={{ flex: 1, padding: "10px 12px", borderRadius: 13 }}>
                   <div className="mono" style={{ fontSize: 17, fontWeight: 700, color: "var(--accent-bright)" }}>{n}</div>
                   <div style={{ fontSize: 10.5, color: "var(--txt-3)", marginTop: 1 }}>{l}</div>
@@ -72,7 +102,7 @@ export default function HomeScreen() {
               </button>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
-              {SERVICES.map((s: any) => (
+              {services.map((s: any) => (
                 <button key={s.id} onClick={() => router.push(`/dashboard/service/${s.id}`)}
                   className="btn focusable" style={{
                     justifyContent: "flex-start", gap: 10, padding: "10px 11px",
@@ -83,7 +113,7 @@ export default function HomeScreen() {
                     <div style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap",
                       overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
                     <div className="mono" style={{ fontSize: 10.5, color: "var(--txt-3)", marginTop: 1 }}>
-                      from {fmt(s.base * 0.7 * 1.35)}
+                      {catalog ? `from ${fmt(cheapestFor(s))}` : "View prices →"}
                     </div>
                   </div>
                 </button>
@@ -116,7 +146,7 @@ export default function HomeScreen() {
                     <div style={{ textAlign: "left" }}>
                       <div style={{ fontWeight: 600, fontSize: 14.5 }}>{s.name}</div>
                       <div className="mono" style={{ fontSize: 11, color: "var(--txt-3)", marginTop: 2 }}>
-                        from {fmt(s.base * 0.7 * 1.35)}
+                        {catalog ? `from ${fmt(cheapestFor(s))}` : "View prices →"}
                       </div>
                     </div>
                   </button>
@@ -134,11 +164,11 @@ export default function HomeScreen() {
                     <div style={{ textAlign: "left", flex: 1 }}>
                       <div style={{ fontWeight: 600, fontSize: 13.5 }}>{s.name}</div>
                       <div style={{ fontSize: 11, color: "var(--txt-3)", marginTop: 1 }}>
-                        {fmtBig(s.avail)} available
+                        {catalog ? fmtBig(cheapestCountCount(s)) + " available" : "…"}
                       </div>
                     </div>
                     <span className="mono" style={{ fontSize: 12, color: "var(--accent-bright)", fontWeight: 600 }}>
-                      {fmt(s.base * 0.7 * 1.35)}
+                      {catalog ? fmt(cheapestFor(s)) : "…"}
                     </span>
                     <Icon name="chevR" size={15} stroke="var(--txt-3)"/>
                   </button>

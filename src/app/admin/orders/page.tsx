@@ -1,16 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Icon, fmt, Badge } from "@/components/ui/Primitives";
-import { useApp } from "@/components/Providers";
 import { svcById, ccById } from "@/lib/data";
 
 const FILTERS = [["all","All"],["waiting","Waiting"],["received","Received"],["expired","Expired"],["cancelled","Cancelled"]] as const;
 
 export default function AdminOrders() {
-  const { orders } = useApp();
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    fetch("/api/admin/orders")
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setOrders(d); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const shown = orders.filter((o: any) => {
     if (filter !== "all" && o.status !== filter) return false;
@@ -18,7 +26,10 @@ export default function AdminOrders() {
       const q = search.toLowerCase();
       const svc = svcById(o.svc);
       const cc  = ccById(o.cc);
-      return o.id.toLowerCase().includes(q) || svc?.name.toLowerCase().includes(q) || cc?.name.toLowerCase().includes(q) || o.number.includes(q);
+      return o.id.toLowerCase().includes(q)
+        || (svc?.name.toLowerCase().includes(q) ?? false)
+        || (cc?.name.toLowerCase().includes(q) ?? false)
+        || String(o.number).includes(q);
     }
     return true;
   });
@@ -27,10 +38,11 @@ export default function AdminOrders() {
     <div style={{ padding: "28px 32px" }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em" }}>Orders</h1>
-        <p style={{ margin: "4px 0 0", color: "var(--txt-3)", fontSize: 14 }}>{orders.length} total · {orders.filter((o: any) => o.status === "received").length} successful</p>
+        <p style={{ margin: "4px 0 0", color: "var(--txt-3)", fontSize: 14 }}>
+          {loading ? "Loading…" : `${orders.length} total · ${orders.filter(o => o.status === "received").length} successful`}
+        </p>
       </div>
 
-      {/* toolbar */}
       <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 13px", background: "var(--surface)", border: "1px solid var(--line-2)", borderRadius: 10, minWidth: 220 }}>
           <Icon name="search" size={16} stroke="var(--txt-3)"/>
@@ -49,7 +61,6 @@ export default function AdminOrders() {
         </div>
       </div>
 
-      {/* table */}
       <div className="card" style={{ borderRadius: 14, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
           <thead>
@@ -60,7 +71,10 @@ export default function AdminOrders() {
             </tr>
           </thead>
           <tbody>
-            {shown.map((o: any) => {
+            {loading && (
+              <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "var(--txt-3)" }}>Loading orders…</td></tr>
+            )}
+            {!loading && shown.map((o: any) => {
               const svc = svcById(o.svc);
               const cc  = ccById(o.cc);
               return (
@@ -81,7 +95,7 @@ export default function AdminOrders() {
                 </tr>
               );
             })}
-            {shown.length === 0 && (
+            {!loading && shown.length === 0 && (
               <tr><td colSpan={8} style={{ padding: "40px", textAlign: "center", color: "var(--txt-3)" }}>No orders match your filter.</td></tr>
             )}
           </tbody>

@@ -39,7 +39,7 @@ export default function SignupPage() {
       const { data, error: authError } = await supabase.auth.signUp({ email, password });
       if (authError) { setError(authError.message); return; }
       if (data.session) {
-        window.location.href = "/dashboard";
+        window.location.href = data.session.user.app_metadata?.is_admin ? "/admin" : "/dashboard";
       } else {
         setError("Check your email to confirm your account, then sign in.");
       }

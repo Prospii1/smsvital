@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "@/components/ui/Primitives";
@@ -13,6 +15,34 @@ const NAV = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const router = useRouter();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/admin/check")
+      .then(r => {
+        if (r.status === 401) { router.replace("/login"); return; }
+        if (r.status === 403) { router.replace("/dashboard"); return; }
+        setChecking(false);
+      })
+      .catch(() => router.replace("/login"));
+  }, [router]);
+
+  if (checking) {
+    return (
+      <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex",
+        alignItems: "center", justifyContent: "center" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--accent)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 0 20px -4px var(--accent-glow)", animation: "pulse 1.4s ease infinite" }}>
+            <Icon name="bolt" size={20} stroke="#0a0612"/>
+          </div>
+          <span style={{ fontSize: 13, color: "var(--txt-3)", fontFamily: "var(--mono)" }}>Verifying access…</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex" }}>

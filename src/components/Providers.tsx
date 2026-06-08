@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase";
+import { SERVICES as STATIC_SERVICES } from "@/lib/data";
 
 interface AppState {
   balance: number;
@@ -14,6 +15,8 @@ interface AppState {
   setTweaks: React.Dispatch<React.SetStateAction<any>>;
   userEmail: string | null;
   userJoinedAt: string | null;
+  catalog: any;
+  services: any[];
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -27,6 +30,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [orders, setOrdersState] = useState<any[]>([]);
   const [txns, setTxnsState] = useState<any[]>([]);
   const [tweaks, setTweaksState] = useState(DEFAULT_TWEAKS);
+  const [catalog, setCatalog] = useState<any>(null);
+  const [services, setServices] = useState<any[]>(STATIC_SERVICES);
+
+  useEffect(() => {
+    fetch("/api/sms/catalog")
+      .then((r) => r.json())
+      .then((data) => {
+        setCatalog(data);
+        if (data?.services) {
+          setServices(data.services);
+        }
+      })
+      .catch(() => {});
+  }, []);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userJoinedAt, setUserJoinedAt] = useState<string | null>(null);
 
@@ -147,6 +164,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       txns, setTxns,
       tweaks, setTweaks,
       userEmail, userJoinedAt,
+      catalog, services,
     }}>
       {children}
     </AppContext.Provider>

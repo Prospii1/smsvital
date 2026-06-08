@@ -7,7 +7,7 @@ export const fmt = (n: number) => {
   const str = abs >= 1
     ? Math.round(abs).toLocaleString("en-NG")
     : abs.toFixed(2);
-  return (n < 0 ? "-₦" : "₦") + str;
+  return (n < 0 ? "-₦ " : "₦ ") + str;
 };
 export const fmtBig = (n: number) => n.toLocaleString("en-US");
 
@@ -50,7 +50,30 @@ export function Icon({ name, size = 20, stroke = "currentColor", sw = 1.7, style
 
 /* ---------- service monogram tile ---------- */
 export function Monogram({ svc, size = 44, radius }: { svc: any, size?: number, radius?: number }) {
+  const [imgFailed, setImgFailed] = useState(false);
   const r = radius != null ? radius : Math.round(size * 0.28);
+  const logoUrl: string | undefined = svc.logoUrl;
+
+  if (logoUrl && !imgFailed) {
+    const pad = Math.round(size * 0.18);
+    return (
+      <div style={{
+        width: size, height: size, borderRadius: r, flexShrink: 0,
+        background: svc.c, display: "flex", alignItems: "center", justifyContent: "center",
+        boxShadow: `0 2px 8px -2px ${svc.c}66`,
+      }}>
+        <img
+          src={logoUrl}
+          alt={svc.name}
+          width={size - pad * 2}
+          height={size - pad * 2}
+          onError={() => setImgFailed(true)}
+          style={{ objectFit: "contain", display: "block", filter: "brightness(0) invert(1)" }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="monogram" style={{
       width: size, height: size, borderRadius: r, fontSize: size * 0.42,
@@ -125,7 +148,8 @@ export function CountdownRing({ progress, size = 168, label, sub, color = "var(-
 
 /* ---------- sparkline / bars ---------- */
 export function Bars({ data, h = 48, color = "var(--accent)", gap = 3 }: { data: number[], h?: number, color?: string, gap?: number }) {
-  const max = Math.max(...data);
+  if (!data?.length) return <div style={{ height: h }}/>;
+  const max = Math.max(...data) || 1;
   return (
     <div style={{ display: "flex", alignItems: "flex-end", gap, height: h }}>
       {data.map((d, i) => (
@@ -135,6 +159,7 @@ export function Bars({ data, h = 48, color = "var(--accent)", gap = 3 }: { data:
   );
 }
 export function Sparkline({ data, w = 120, h = 36, color = "var(--accent-bright)" }: { data: number[], w?: number, h?: number, color?: string }) {
+  if (!data?.length) return <svg width={w} height={h}/>;
   const max = Math.max(...data), min = Math.min(...data);
   const pts = data.map((d, i) => {
     const x = (i / (data.length - 1)) * w;

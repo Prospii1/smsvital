@@ -20,9 +20,9 @@ export default function LoginPage() {
     try {
       const { createClient } = await import("@/lib/supabase");
       const supabase = createClient();
-      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
       if (authError) { setError(authError.message); return; }
-      window.location.href = "/dashboard";
+      window.location.href = data.user?.app_metadata?.is_admin ? "/admin" : "/dashboard";
     } catch {
       setError("Sign-in failed. Please try again.");
     } finally {
@@ -66,7 +66,7 @@ export default function LoginPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <label className="eyebrow">Password</label>
-                <a href="#" style={{ fontSize: 12, color: "var(--accent-bright)", textDecoration: "none" }}>Forgot password?</a>
+                <Link href="/forgot-password" style={{ fontSize: 12, color: "var(--accent-bright)", textDecoration: "none" }}>Forgot password?</Link>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "13px 14px", background: "var(--surface-2)", boxShadow: "inset 0 0 0 1px var(--line-2)", borderRadius: 12 }}>
                 <Icon name="lock" size={17} stroke="var(--txt-3)"/>

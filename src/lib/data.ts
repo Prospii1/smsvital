@@ -1,21 +1,22 @@
-// service monogram color (single hue family, varied) — no copyrighted logos
+const si = (slug: string) => `https://cdn.simpleicons.org/${slug}`;
+
 export const SERVICES = [
-  { id: 'tg', name: 'Telegram',  c: '#3aa0e0', avail: 48213, base: 0.18, smspvaCode: 'opt29'  },
-  { id: 'wa', name: 'WhatsApp',  c: '#34e0a1', avail: 22904, base: 0.42, smspvaCode: 'opt20'  },
-  { id: 'go', name: 'Google',    c: '#e0863a', avail: 61022, base: 0.31, smspvaCode: 'opt1'   },
-  { id: 'ig', name: 'Instagram', c: '#d8569b', avail: 18337, base: 0.55, smspvaCode: 'opt16'  },
-  { id: 'tt', name: 'TikTok',    c: '#6f6cf0', avail: 9921,  base: 0.49, smspvaCode: 'opt104' },
-  { id: 'oa', name: 'OpenAI',    c: '#34e0a1', avail: 4410,  base: 1.20, smspvaCode: 'opt132' },
-  { id: 'di', name: 'Discord',   c: '#7d83f0', avail: 31188, base: 0.27, smspvaCode: 'opt45'  },
-  { id: 'fb', name: 'Facebook',  c: '#3a7fe0', avail: 40551, base: 0.24, smspvaCode: 'opt2'   },
-  { id: 'tn', name: 'Tinder',    c: '#f0566f', avail: 2233,  base: 0.92, smspvaCode: 'opt9'   },
-  { id: 'ub', name: 'Uber',      c: '#c9d1dc', avail: 7740,  base: 0.61, smspvaCode: 'opt72'  },
-  { id: 'pp', name: 'PayPal',    c: '#3a6fe0', avail: 1502,  base: 1.05, smspvaCode: 'opt83'  },
-  { id: 'cb', name: 'Coinbase',  c: '#3a8fe0', avail: 988,   base: 1.40, smspvaCode: 'opt112' },
-  { id: 'st', name: 'Steam',     c: '#7aa0c9', avail: 12044, base: 0.34, smspvaCode: 'opt58'  },
-  { id: 'am', name: 'Amazon',    c: '#e0a13a', avail: 15630, base: 0.38, smspvaCode: 'opt44'  },
-  { id: 'ne', name: 'Netflix',   c: '#f0566f', avail: 5512,  base: 0.58, smspvaCode: 'opt101' },
-  { id: 'mi', name: 'Microsoft', c: '#3a9fe0', avail: 26110, base: 0.29, smspvaCode: 'opt15'  },
+  { id: 'tg', name: 'Telegram',  c: '#2CA5E0', avail: 48213, base: 0.18, smspvaCode: 'opt29',  logoUrl: si('telegram')  },
+  { id: 'wa', name: 'WhatsApp',  c: '#25D366', avail: 22904, base: 0.42, smspvaCode: 'opt20',  logoUrl: si('whatsapp')  },
+  { id: 'go', name: 'Google',    c: '#4285F4', avail: 61022, base: 0.31, smspvaCode: 'opt1',   logoUrl: si('google')    },
+  { id: 'ig', name: 'Instagram', c: '#E1306C', avail: 18337, base: 0.55, smspvaCode: 'opt16',  logoUrl: si('instagram') },
+  { id: 'tt', name: 'TikTok',    c: '#010101', avail: 9921,  base: 0.49, smspvaCode: 'opt104', logoUrl: si('tiktok')    },
+  { id: 'oa', name: 'OpenAI',    c: '#412991', avail: 4410,  base: 1.20, smspvaCode: 'opt132', logoUrl: si('openai')    },
+  { id: 'di', name: 'Discord',   c: '#5865F2', avail: 31188, base: 0.27, smspvaCode: 'opt45',  logoUrl: si('discord')   },
+  { id: 'fb', name: 'Facebook',  c: '#1877F2', avail: 40551, base: 0.24, smspvaCode: 'opt2',   logoUrl: si('facebook')  },
+  { id: 'tn', name: 'Tinder',    c: '#FF6B6B', avail: 2233,  base: 0.92, smspvaCode: 'opt9',   logoUrl: si('tinder')    },
+  { id: 'ub', name: 'Uber',      c: '#000000', avail: 7740,  base: 0.61, smspvaCode: 'opt72',  logoUrl: si('uber')      },
+  { id: 'pp', name: 'PayPal',    c: '#003087', avail: 1502,  base: 1.05, smspvaCode: 'opt83',  logoUrl: si('paypal')    },
+  { id: 'cb', name: 'Coinbase',  c: '#0052FF', avail: 988,   base: 1.40, smspvaCode: 'opt112', logoUrl: si('coinbase')  },
+  { id: 'st', name: 'Steam',     c: '#1B2838', avail: 12044, base: 0.34, smspvaCode: 'opt58',  logoUrl: si('steam')     },
+  { id: 'am', name: 'Amazon',    c: '#FF9900', avail: 15630, base: 0.38, smspvaCode: 'opt44',  logoUrl: si('amazon')    },
+  { id: 'ne', name: 'Netflix',   c: '#E50914', avail: 5512,  base: 0.58, smspvaCode: 'opt101', logoUrl: si('netflix')   },
+  { id: 'mi', name: 'Microsoft', c: '#0078D4', avail: 26110, base: 0.29, smspvaCode: 'opt15',  logoUrl: si('microsoft') },
 ];
 
 // countries — iso code + dial + smspvaCode (SMSPVA activation API code) + availability multiplier
@@ -88,5 +89,8 @@ export const SEED_ORDERS = [
   { id: 'ORD-7720', svc: 'wa', cc: 'id', number: '+62 811 220 553',  code: '447902', price: 0.57, status: 'received', age: '2d ago'  },
 ];
 
-export const svcById = (id: string) => SERVICES.find(s => s.id === id);
-export const ccById  = (id: string) => COUNTRIES.find(c => c.id === id);
+export const svcById = (id: string, customList?: any[]) => {
+  const list = customList && customList.length > 0 ? customList : SERVICES;
+  return list.find(s => s.id === id || s.smspvaCode === id);
+};
+export const ccById  = (id: string) => COUNTRIES.find(c => c.id === id || c.smspvaCode === id);
