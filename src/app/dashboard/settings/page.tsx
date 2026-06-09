@@ -3,7 +3,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
-import { Icon, fmt, useToast } from "@/components/ui/Primitives";
+import { Icon, fmt } from "@/components/ui/Primitives";
 import { useApp } from "@/components/Providers";
 import { createClient } from "@/lib/supabase";
 
@@ -36,7 +36,6 @@ function Row({ icon, label, val, danger, onClick }: {
 
 export default function SettingsScreen() {
   const { balance, tweaks, setTweaks, orders, userEmail, userJoinedAt } = useApp();
-  const pushToast = useToast();
   const router = useRouter();
 
   return (
@@ -55,10 +54,6 @@ export default function SettingsScreen() {
 
         <div className="card" style={{ overflow: "hidden", borderRadius: 16 }}>
           <Row icon="wallet" label="Wallet & billing" val={fmt(balance)} onClick={() => router.push("/dashboard/wallet")}/>
-          <Row icon="bolt"   label="Auto-reload" val="On"      onClick={() => pushToast({ msg: "Auto-reload settings" })}/>
-          <Row icon="shield" label="Two-factor auth" val="Enabled" onClick={() => pushToast({ msg: "2FA settings" })}/>
-          <Row icon="tag"    label="API keys" val="2 active"   onClick={() => pushToast({ msg: "Developer API keys" })}/>
-          <Row icon="phone"  label="Notifications" val="Push"  onClick={() => pushToast({ msg: "Notification prefs" })}/>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", padding: "20px 2px 10px" }}>
@@ -117,7 +112,6 @@ export default function SettingsScreen() {
         </div>
 
         <div className="card" style={{ overflow: "hidden", borderRadius: 16, marginTop: 14 }}>
-          <Row icon="eye"    label="Privacy & data"  onClick={() => pushToast({ msg: "Privacy center" })}/>
           <Row icon="logout" label="Sign out" danger  onClick={async () => { await createClient().auth.signOut(); window.location.href = "/login"; }}/>
         </div>
 
