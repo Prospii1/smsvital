@@ -17,6 +17,11 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Smsvital — Instant Phone Verification",
   description: "Buy disposable phone numbers for any app verification. 600+ services, 150+ countries, live in seconds.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
