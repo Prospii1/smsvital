@@ -1,9 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
-import { Icon, fmt } from "@/components/ui/Primitives";
+import { Icon, fmt, useToast } from "@/components/ui/Primitives";
 import { useApp } from "@/components/Providers";
 import { createClient } from "@/lib/supabase";
 
@@ -34,9 +34,125 @@ function Row({ icon, label, val, danger, onClick }: {
   );
 }
 
+function ChangePasswordSheet({ onClose }: { onClose: () => void }) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const pushToast = useToast();
+
+  const strength = (() => {
+    if (next.length === 0) return 0;
+    let s = 0;
+    if (next.length >= 8) s++;
+    if (/[A-Z]/.test(next)) s++;
+    if (/[0-9]/.test(next)) s++;
+    if (/[^a-zA-Z0-9]/.test(next)) s++;
+    return s;
+  })();
+  const strengthColor = ["", "var(--bad)", "var(--warn)", "var(--ok)", "var(--ok)"][strength];
+
+  const handleSave = async () => {
+    setError("");
+    if (next.length < 8) { setError("New password must be at least 8 characters."); return; }
+    if (next !== confirm) { setError("Passwords do not match."); return; }
+    setLoading(true);
+    try {
+      const supabase = createClient();
+      // Re-authenticate with current password first
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.email) { setError("Could not verify session."); return; }
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email: user.email, password: current });
+      if (signInErr) { setError("Current password is incorrect."); return; }
+      const { error: updateErr } = await supabase.auth.updateUser({ password: next });
+      if (updateErr) { setError(updateErr.message); return; }
+      pushToast({ kind: "ok", msg: "Password updated successfully" });
+      onClose();
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputBox = { display: "flex", alignItems: "center", gap: 10, padding: "13px 14px", background: "var(--surface-2)", boxShadow: "inset 0 0 0 1px var(--line-2)", borderRadius: 12 } as const;
+  const inputStyle = { flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--txt)", fontSize: 15, fontFamily: "var(--sans)" } as const;
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: "var(--surface)", borderRadius: "24px 24px 0 0", padding: "10px 20px 34px", boxShadow: "0 -20px 60px rgba(0,0,0,0.6)" }}>
+        <div style={{ width: 40, height: 4, borderRadius: 99, background: "var(--line-2)", margin: "4px auto 18px" }}/>
+        <div style={{ fontWeight: 700, fontSize: 19, marginBottom: 4 }}>Change password</div>
+        <div style={{ fontSize: 12.5, color: "var(--txt-3)", marginBottom: 20 }}>Enter your current password, then choose a new one</div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Current password */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <label className="eyebrow">Current password</label>
+            <div style={inputBox}>
+              <Icon name="lock" size={17} stroke="var(--txt-3)"/>
+              <input type={showPw ? "text" : "password"} value={current} onChange={e => setCurrent(e.target.value)}
+                placeholder="Your current password" autoComplete="current-password" style={inputStyle}/>
+              <button type="button" onClick={() => setShowPw(!showPw)} style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--txt-3)", padding: 0, display: "flex" }}>
+                <Icon name="eye" size={16}/>
+              </button>
+            </div>
+          </div>
+
+          {/* New password */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <label className="eyebrow">New password</label>
+            <div style={inputBox}>
+              <Icon name="lock" size={17} stroke="var(--txt-3)"/>
+              <input type={showPw ? "text" : "password"} value={next} onChange={e => setNext(e.target.value)}
+                placeholder="Min 8 characters" autoComplete="new-password" style={inputStyle}/>
+            </div>
+            {next.length > 0 && (
+              <div style={{ display: "flex", gap: 4 }}>
+                {[1,2,3,4].map(i => (
+                  <div key={i} style={{ flex: 1, height: 3, borderRadius: 99, background: i <= strength ? strengthColor : "var(--line-2)", transition: "background .2s" }}/>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Confirm password */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <label className="eyebrow">Confirm new password</label>
+            <div style={inputBox}>
+              <Icon name="lock" size={17} stroke="var(--txt-3)"/>
+              <input type={showPw ? "text" : "password"} value={confirm} onChange={e => setConfirm(e.target.value)}
+                placeholder="Re-enter new password" autoComplete="new-password" style={inputStyle}/>
+              {confirm.length > 0 && (
+                <span style={{ color: confirm === next ? "var(--ok)" : "var(--bad)", display: "flex" }}>
+                  <Icon name={confirm === next ? "check" : "x"} size={16}/>
+                </span>
+              )}
+            </div>
+          </div>
+
+          {error && (
+            <div style={{ padding: "11px 14px", borderRadius: 10, background: "var(--bad-soft)", border: "1px solid rgba(251,111,132,0.3)", fontSize: 13.5, color: "var(--bad)" }}>
+              {error}
+            </div>
+          )}
+
+          <button onClick={handleSave} disabled={loading} className="btn btn-primary" style={{ width: "100%", padding: "15px", borderRadius: 13, fontSize: 16, marginTop: 4 }}>
+            {loading ? "Updating…" : "Update password"}
+            {!loading && <Icon name="chevR" size={17} stroke="#0a0612"/>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsScreen() {
   const { balance, tweaks, setTweaks, orders, userEmail, userJoinedAt } = useApp();
   const router = useRouter();
+  const [pwSheet, setPwSheet] = useState(false);
 
   return (
     <div className="screen-in" style={{ display: "flex", flexDirection: "column", paddingTop: 10 }}>
@@ -54,6 +170,7 @@ export default function SettingsScreen() {
 
         <div className="card" style={{ overflow: "hidden", borderRadius: 16 }}>
           <Row icon="wallet" label="Wallet & billing" val={fmt(balance)} onClick={() => router.push("/dashboard/wallet")}/>
+          <Row icon="lock" label="Change password" onClick={() => setPwSheet(true)}/>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", padding: "20px 2px 10px" }}>
@@ -112,11 +229,13 @@ export default function SettingsScreen() {
         </div>
 
         <div className="card" style={{ overflow: "hidden", borderRadius: 16, marginTop: 14 }}>
-          <Row icon="logout" label="Sign out" danger  onClick={async () => { await createClient().auth.signOut(); window.location.href = "/login"; }}/>
+          <Row icon="logout" label="Sign out" danger onClick={async () => { await createClient().auth.signOut(); window.location.href = "/login"; }}/>
         </div>
 
         <div style={{ textAlign: "center", color: "var(--txt-3)", fontSize: 11, marginTop: 20 }} className="mono">smsvital · v2.4.0</div>
       </div>
+
+      {pwSheet && <ChangePasswordSheet onClose={() => setPwSheet(false)} />}
     </div>
   );
 }
