@@ -48,8 +48,7 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
       }
 
       const checkout = new CheckoutClass({
-        apiKey: process.env.NEXT_PUBLIC_TRANSACTPAY_PUBLIC_KEY,
-        encryptionKey: process.env.NEXT_PUBLIC_TRANSACTPAY_ENCRYPTION_KEY,
+        apiKey: "PGW-PUBLICKEY-TEST-59A0662C23504AFCA30846B11D52E766",
         amount: amt,
         currency: "NGN",
         reference,

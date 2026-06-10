@@ -105,7 +105,8 @@ export async function POST(request: Request) {
   const data = await res.json();
   console.log("TransactPay create order response:", JSON.stringify(data));
 
-  if (!res.ok) {
+  if (!res.ok || (data.status !== "success" && data.statusCode !== "01")) {
+    console.error("TransactPay order create failed:", JSON.stringify(data));
     return Response.json({ error: data.message ?? "Order creation failed" }, { status: 502 });
   }
 
