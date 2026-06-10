@@ -23,6 +23,10 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
   }, []);
 
   const handlePay = async () => {
+    if (amt < 500) {
+      pushToast({ kind: "bad", msg: "Minimum top-up amount is ₦500" });
+      return;
+    }
     setLoading(true);
     try {
       // Get secure reference from server
@@ -61,17 +65,20 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
         description: "Smsvital wallet top-up",
         RedirectUrl: `${window.location.origin}/payment/verify`,
         onCompleted: async (data: any) => {
+          console.log("TransactPay onCompleted data:", JSON.stringify(data));
+          const ref = data?.reference ?? data?.orderReference ?? data?.order?.reference ?? reference;
           try {
             const verifyRes = await fetch("/api/payment/verify", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ tx_ref: data.reference ?? reference }),
+              body: JSON.stringify({ tx_ref: ref }),
             });
             const verifyData = await verifyRes.json();
+            console.log("Verify response:", JSON.stringify(verifyData));
             if (verifyData.ok) {
               setBalance(verifyData.newBalance);
               setTxns((ts: any[]) => [verifyData.txn, ...ts]);
-              pushToast({ kind: "ok", msg: "Wallet topped up successfully!" });
+              pushToast({ kind: "ok", msg: `₦${amt.toLocaleString("en-NG")} added to your wallet!` });
               onClose();
             } else if (verifyData.error === "Payment already credited") {
               pushToast({ msg: "Payment already applied to your wallet" });
@@ -88,7 +95,8 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
         onClose: () => {
           setLoading(false);
         },
-        onError: (_err: any) => {
+        onError: (err: any) => {
+          console.log("TransactPay onError:", JSON.stringify(err));
           pushToast({ kind: "bad", msg: "Payment error — please try again" });
           setLoading(false);
         },
@@ -125,8 +133,8 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
             background: "var(--surface-2)", boxShadow: "inset 0 0 0 1px var(--line-2)", borderRadius: 12 }}>
             <span style={{ color: "var(--txt-3)", fontSize: 14, fontFamily: "var(--mono)" }}>₦</span>
             <input
-              type="number" min={500} step={100} value={amt}
-              onChange={e => setAmt(Math.max(500, Number(e.target.value)))}
+              type="number" min={1} step={100} value={amt}
+              onChange={e => setAmt(Math.max(1, Number(e.target.value)))}
               style={{ flex: 1, background: "transparent", border: "none", outline: "none",
                 color: "var(--txt)", fontSize: 18, fontFamily: "var(--mono)", fontWeight: 700 }}
             />
@@ -135,8 +143,13 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
         <button onClick={handlePay} disabled={loading} className="btn btn-primary" style={{ width: "100%", padding: "15px", borderRadius: 13, fontSize: 16 }}>
           {loading ? <><Icon name="refresh" size={16}/>Processing…</> : <><Icon name="lock" size={16}/>Pay {fmt(amt)} via TransactPay</>}
         </button>
-        <div style={{ fontSize: 11.5, color: "var(--txt-3)", textAlign: "center", marginTop: 10 }}>
-          Minimum ₦500 · Secured by TransactPay
+        {amt < 500 && amt > 0 && (
+          <div style={{ fontSize: 12, color: "var(--bad)", textAlign: "center", marginTop: 6 }}>
+            Minimum top-up is ₦500
+          </div>
+        )}
+        <div style={{ fontSize: 11.5, color: "var(--txt-3)", textAlign: "center", marginTop: 6 }}>
+          Secured by TransactPay
         </div>
       </div>
     </div>

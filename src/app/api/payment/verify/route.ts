@@ -76,17 +76,27 @@ export async function POST(request: Request) {
   });
 
   const data = await res.json();
+  console.log("TransactPay order/status raw response:", JSON.stringify(data));
 
   if (!res.ok) {
+    console.error("TransactPay status check failed:", res.status, JSON.stringify(data));
     return Response.json({ error: "Verification failed" }, { status: 402 });
   }
 
-  const tx = data.data;
+  // data.data may be nested; handle both shapes
+  const tx = data?.data ?? data;
+  const txStatus = (tx?.status ?? tx?.paymentStatus ?? "").toLowerCase();
+  console.log("TransactPay tx status:", txStatus, "| full tx:", JSON.stringify(tx));
 
-  if (tx?.status?.toLowerCase() !== "successful") {
+  const FAILED_STATUSES = ["failed", "cancelled", "rejected", "expired"];
+  if (FAILED_STATUSES.includes(txStatus)) {
     return Response.json({ error: "Payment not successful", status: tx?.status }, { status: 402 });
   }
-  if (tx?.currency !== "NGN") {
+  // Accept anything that isn't explicitly failed — "successful", "completed", "paid", "success" etc.
+  if (!txStatus) {
+    return Response.json({ error: "Could not determine payment status", status: tx?.status }, { status: 402 });
+  }
+  if (tx?.currency && tx.currency !== "NGN") {
     return Response.json({ error: "Invalid currency" }, { status: 400 });
   }
 
