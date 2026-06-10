@@ -16,19 +16,18 @@ function PaymentVerifyInner() {
   const [errMsg, setErrMsg] = useState("");
 
   useEffect(() => {
-    const tx_ref   = params.get("tx_ref");
-    const flw_status = params.get("status");
+    const reference = params.get("reference");
 
-    if (!tx_ref || flw_status !== "successful") {
+    if (!reference) {
       setStatus("failed");
-      setErrMsg("Payment was not completed.");
+      setErrMsg("Payment reference missing.");
       return;
     }
 
     fetch("/api/payment/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tx_ref }),
+      body: JSON.stringify({ tx_ref: reference }),
     })
       .then(r => r.json())
       .then(d => {

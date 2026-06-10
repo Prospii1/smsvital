@@ -40,7 +40,7 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
         padding: "10px 20px 34px", boxShadow: "0 -20px 60px rgba(0,0,0,0.6)", animation: "sheetUp .3s cubic-bezier(.2,.9,.3,1)" }}>
         <div style={{ width: 40, height: 4, borderRadius: 99, background: "var(--line-2)", margin: "4px auto 18px" }}/>
         <div style={{ fontWeight: 700, fontSize: 19, marginBottom: 4 }}>Add funds</div>
-        <div style={{ fontSize: 12.5, color: "var(--txt-3)", marginBottom: 16 }}>Pay via Flutterwave · cards, bank transfer, USSD</div>
+        <div style={{ fontSize: 12.5, color: "var(--txt-3)", marginBottom: 16 }}>Pay via TransactPay · cards, bank transfer, USSD</div>
         <div className="mono" style={{ textAlign: "center", fontSize: 46, fontWeight: 700, margin: "8px 0 18px" }}>{fmt(amt)}</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8, marginBottom: 18 }}>
           {presets.map(p => (
@@ -65,10 +65,10 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
           </div>
         </div>
         <button onClick={handlePay} disabled={loading} className="btn btn-primary" style={{ width: "100%", padding: "15px", borderRadius: 13, fontSize: 16 }}>
-          {loading ? <><Icon name="refresh" size={16}/>Redirecting…</> : <><Icon name="lock" size={16}/>Pay {fmt(amt)} via Flutterwave</>}
+          {loading ? <><Icon name="refresh" size={16}/>Redirecting…</> : <><Icon name="lock" size={16}/>Pay {fmt(amt)} via TransactPay</>}
         </button>
         <div style={{ fontSize: 11.5, color: "var(--txt-3)", textAlign: "center", marginTop: 10 }}>
-          Minimum ₦500 · Secured by Flutterwave
+          Minimum ₦500 · Secured by TransactPay
         </div>
       </div>
     </div>

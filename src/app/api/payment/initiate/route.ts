@@ -1,8 +1,52 @@
+import crypto from "crypto";
 import { getAuthenticatedUser } from "@/lib/admin-guard";
 
+function xmlRsaKeyToPem(base64Xml: string): string {
+  const xml = Buffer.from(base64Xml, "base64").toString("utf8");
+  const modMatch = xml.match(/<Modulus>([\s\S]*?)<\/Modulus>/);
+  const expMatch = xml.match(/<Exponent>([\s\S]*?)<\/Exponent>/);
+  if (!modMatch || !expMatch) throw new Error("Invalid RSA XML key");
+
+  const modulus = Buffer.from(modMatch[1].trim(), "base64");
+  const exponent = Buffer.from(expMatch[1].trim(), "base64");
+
+  // Build DER-encoded RSAPublicKey (PKCS#1)
+  function encodeLength(len: number): Buffer {
+    if (len < 0x80) return Buffer.from([len]);
+    if (len < 0x100) return Buffer.from([0x81, len]);
+    return Buffer.from([0x82, (len >> 8) & 0xff, len & 0xff]);
+  }
+  function encodeTlv(tag: number, value: Buffer): Buffer {
+    return Buffer.concat([Buffer.from([tag]), encodeLength(value.length), value]);
+  }
+
+  // Strip leading zero if present (unsigned integer encoding)
+  const mod = modulus[0] & 0x80 ? Buffer.concat([Buffer.from([0x00]), modulus]) : modulus;
+  const exp = exponent[0] & 0x80 ? Buffer.concat([Buffer.from([0x00]), exponent]) : exponent;
+
+  const pkcs1 = encodeTlv(0x30, Buffer.concat([encodeTlv(0x02, mod), encodeTlv(0x02, exp)]));
+
+  // Wrap in SubjectPublicKeyInfo (PKCS#8 style) so Node crypto accepts it
+  const algorithmIdentifier = Buffer.from("300d06092a864886f70d0101010500", "hex");
+  const spki = encodeTlv(0x30, Buffer.concat([algorithmIdentifier, encodeTlv(0x03, Buffer.concat([Buffer.from([0x00]), pkcs1]))]));
+
+  const b64 = spki.toString("base64").match(/.{1,64}/g)!.join("\n");
+  return `-----BEGIN PUBLIC KEY-----\n${b64}\n-----END PUBLIC KEY-----`;
+}
+
+function encryptPayload(data: object, encryptionKeyBase64: string): string {
+  const pem = xmlRsaKeyToPem(encryptionKeyBase64);
+  const encrypted = crypto.publicEncrypt(
+    { key: pem, padding: crypto.constants.RSA_PKCS1_PADDING },
+    Buffer.from(JSON.stringify(data))
+  );
+  return encrypted.toString("base64");
+}
+
 export async function POST(request: Request) {
-  const secretKey = process.env.FLW_SECRET_KEY;
-  if (!secretKey || secretKey.includes("your-secret-key")) {
+  const publicKey = process.env.TRANSACTPAY_PUBLIC_KEY;
+  const encryptionKey = process.env.TRANSACTPAY_ENCRYPTION_KEY;
+  if (!publicKey || !encryptionKey) {
     return Response.json({ error: "Payment not configured" }, { status: 503 });
   }
 
@@ -15,39 +59,59 @@ export async function POST(request: Request) {
   if (!body) return Response.json({ error: "Invalid body" }, { status: 400 });
 
   const { amount, email } = body;
-
   if (typeof amount !== "number" || amount < 500) {
     return Response.json({ error: "Minimum top-up is ₦500" }, { status: 400 });
   }
 
-  const tx_ref = "SMSV-" + Date.now().toString(36).toUpperCase() + "-" + authUser.userId.slice(0, 6).toUpperCase();
+  const reference = "SMSV-" + Date.now().toString(36).toUpperCase() + "-" + authUser.userId.slice(0, 6).toUpperCase();
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
 
-  const res = await fetch("https://api.flutterwave.com/v3/payments", {
+  const payload = {
+    customer: {
+      firstname: "Smsvital",
+      lastname: "User",
+      mobile: "00000000000",
+      email: email || "user@smsvital.com",
+      country: "NG",
+    },
+    order: {
+      amount,
+      reference,
+      description: `Smsvital wallet top-up ₦${amount.toLocaleString("en-NG")}`,
+      currency: "NGN",
+    },
+    payment: {
+      RedirectUrl: `${baseUrl}/payment/verify`,
+    },
+    meta: {
+      ipAddress: "127.0.0.1",
+      user_id: authUser.userId,
+    },
+  };
+
+  let encrypted: string;
+  try {
+    encrypted = encryptPayload(payload, encryptionKey);
+  } catch (e) {
+    console.error("Encryption error:", e);
+    return Response.json({ error: "Encryption failed" }, { status: 500 });
+  }
+
+  const res = await fetch("https://payment-api-service.transactpay.ai/payment/order/create", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${secretKey}`,
-      "Content-Type": "application/json",
+      "api-key": publicKey,
+      "content-type": "application/json",
     },
-    body: JSON.stringify({
-      tx_ref,
-      amount,
-      currency: "NGN",
-      redirect_url: `${baseUrl}/payment/verify`,
-      customer: { email, user_id: authUser.userId },
-      customizations: {
-        title: "SMSVital Wallet Top-up",
-        description: `Add ₦${amount.toLocaleString("en-NG")} to your wallet`,
-        logo: `${baseUrl}/favicon.ico`,
-      },
-      meta: { user_id: authUser.userId, amount_ngn: amount },
-    }),
+    body: JSON.stringify({ data: encrypted }),
   });
 
   const data = await res.json();
-  if (!res.ok || data.status !== "success") {
+
+  if (!res.ok || data.status?.toLowerCase() !== "successful") {
+    console.error("TransactPay initiate error:", data);
     return Response.json({ error: data.message ?? "Payment initiation failed" }, { status: 502 });
   }
 
-  return Response.json({ payment_link: data.data.link, tx_ref });
+  return Response.json({ payment_link: data.data.redirectUrl, tx_ref: reference });
 }

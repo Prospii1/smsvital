@@ -1,9 +1,49 @@
+import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getAuthenticatedUser } from "@/lib/admin-guard";
 
+function xmlRsaKeyToPem(base64Xml: string): string {
+  const xml = Buffer.from(base64Xml, "base64").toString("utf8");
+  const modMatch = xml.match(/<Modulus>([\s\S]*?)<\/Modulus>/);
+  const expMatch = xml.match(/<Exponent>([\s\S]*?)<\/Exponent>/);
+  if (!modMatch || !expMatch) throw new Error("Invalid RSA XML key");
+
+  const modulus = Buffer.from(modMatch[1].trim(), "base64");
+  const exponent = Buffer.from(expMatch[1].trim(), "base64");
+
+  function encodeLength(len: number): Buffer {
+    if (len < 0x80) return Buffer.from([len]);
+    if (len < 0x100) return Buffer.from([0x81, len]);
+    return Buffer.from([0x82, (len >> 8) & 0xff, len & 0xff]);
+  }
+  function encodeTlv(tag: number, value: Buffer): Buffer {
+    return Buffer.concat([Buffer.from([tag]), encodeLength(value.length), value]);
+  }
+
+  const mod = modulus[0] & 0x80 ? Buffer.concat([Buffer.from([0x00]), modulus]) : modulus;
+  const exp = exponent[0] & 0x80 ? Buffer.concat([Buffer.from([0x00]), exponent]) : exponent;
+
+  const pkcs1 = encodeTlv(0x30, Buffer.concat([encodeTlv(0x02, mod), encodeTlv(0x02, exp)]));
+  const algorithmIdentifier = Buffer.from("300d06092a864886f70d0101010500", "hex");
+  const spki = encodeTlv(0x30, Buffer.concat([algorithmIdentifier, encodeTlv(0x03, Buffer.concat([Buffer.from([0x00]), pkcs1]))]));
+
+  const b64 = spki.toString("base64").match(/.{1,64}/g)!.join("\n");
+  return `-----BEGIN PUBLIC KEY-----\n${b64}\n-----END PUBLIC KEY-----`;
+}
+
+function encryptPayload(data: object, encryptionKeyBase64: string): string {
+  const pem = xmlRsaKeyToPem(encryptionKeyBase64);
+  const encrypted = crypto.publicEncrypt(
+    { key: pem, padding: crypto.constants.RSA_PKCS1_PADDING },
+    Buffer.from(JSON.stringify(data))
+  );
+  return encrypted.toString("base64");
+}
+
 export async function POST(request: Request) {
-  const secretKey = process.env.FLW_SECRET_KEY;
-  if (!secretKey || secretKey.includes("your-secret-key")) {
+  const publicKey = process.env.TRANSACTPAY_PUBLIC_KEY;
+  const encryptionKey = process.env.TRANSACTPAY_ENCRYPTION_KEY;
+  if (!publicKey || !encryptionKey) {
     return Response.json({ error: "Payment not configured" }, { status: 503 });
   }
 
@@ -13,41 +53,51 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null);
-  if (!body?.tx_ref) return Response.json({ error: "Missing tx_ref" }, { status: 400 });
+  if (!body?.tx_ref) return Response.json({ error: "Missing reference" }, { status: 400 });
 
   const { tx_ref } = body;
 
-  // Verify with Flutterwave
-  const res = await fetch(`https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`, {
-    headers: { Authorization: `Bearer ${secretKey}` },
+  // Verify with TransactPay
+  let encrypted: string;
+  try {
+    encrypted = encryptPayload({ reference: tx_ref }, encryptionKey);
+  } catch (e) {
+    console.error("Encryption error:", e);
+    return Response.json({ error: "Encryption failed" }, { status: 500 });
+  }
+
+  const res = await fetch("https://payment-api-service.transactpay.ai/payment/order/status", {
+    method: "POST",
+    headers: {
+      "api-key": publicKey,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ data: encrypted }),
   });
 
   const data = await res.json();
 
-  if (!res.ok || data.status !== "success") {
+  if (!res.ok) {
     return Response.json({ error: "Verification failed" }, { status: 402 });
   }
 
   const tx = data.data;
 
-  // Confirm payment is complete, currency is NGN, and it's for this user
-  if (tx.status !== "successful") {
-    return Response.json({ error: "Payment not successful", status: tx.status }, { status: 402 });
+  if (tx?.status?.toLowerCase() !== "successful") {
+    return Response.json({ error: "Payment not successful", status: tx?.status }, { status: 402 });
   }
-  if (tx.currency !== "NGN") {
+  if (tx?.currency !== "NGN") {
     return Response.json({ error: "Invalid currency" }, { status: 400 });
-  }
-  if (tx.meta?.user_id && tx.meta.user_id !== authUser.userId) {
-    return Response.json({ error: "Payment does not belong to this account" }, { status: 403 });
   }
 
   const amountNgn = tx.amount as number;
 
-  // Idempotency — check if this tx_ref was already credited
+  // Idempotency — check if this reference was already credited
+  const txnId = `TXP-${tx_ref}`;
   const { data: existing } = await supabaseAdmin
     .from("transactions")
     .select("id")
-    .eq("id", `FLW-${tx.id}`)
+    .eq("id", txnId)
     .maybeSingle();
 
   if (existing) {
@@ -64,11 +114,11 @@ export async function POST(request: Request) {
 
   // Record transaction
   const txnRecord = {
-    id: `FLW-${tx.id}`,
+    id: txnId,
     t: "topup",
     label: "Wallet top-up",
     amt: amountNgn,
-    ref: `Flutterwave · ${tx.payment_type ?? "card"}`,
+    ref: `TransactPay · ${tx.paymentMethod ?? "card"}`,
     when: new Date().toLocaleString("en-NG"),
   };
 
