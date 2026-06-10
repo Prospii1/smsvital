@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Icon, fmt, useToast } from "@/components/ui/Primitives";
 import { useApp } from "@/components/Providers";
@@ -9,26 +9,94 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
   const [amt, setAmt] = useState(1000);
   const [loading, setLoading] = useState(false);
   const pushToast = useToast();
+  const { setBalance, setTxns } = useApp();
   const presets = [500, 1000, 2500, 5000, 10000];
+
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://payment-web-sdk.transactpay.ai/v1/checkout";
+    script.async = true;
+    document.body.appendChild(script);
+    return () => {
+      if (document.body.contains(script)) document.body.removeChild(script);
+    };
+  }, []);
 
   const handlePay = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/payment/initiate", {
+      // Get secure reference from server
+      const initRes = await fetch("/api/payment/initiate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: amt, email: userEmail ?? "" }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.payment_link) {
-        pushToast({ kind: "bad", msg: data.error ?? "Failed to start payment" });
+      const initData = await initRes.json();
+      if (!initRes.ok) {
+        pushToast({ kind: "bad", msg: initData.error ?? "Failed to start payment" });
+        setLoading(false);
         return;
       }
-      // Redirect to Flutterwave hosted payment page
-      window.location.href = data.payment_link;
+
+      const { reference } = initData;
+
+      const CheckoutClass = (window as any).CheckoutNS?.PaymentCheckout;
+      if (!CheckoutClass) {
+        pushToast({ kind: "bad", msg: "Payment SDK not loaded — please refresh and try again" });
+        setLoading(false);
+        return;
+      }
+
+      const checkout = new CheckoutClass({
+        apiKey: process.env.NEXT_PUBLIC_TRANSACTPAY_PUBLIC_KEY,
+        encryptionKey: process.env.NEXT_PUBLIC_TRANSACTPAY_ENCRYPTION_KEY,
+        amount: amt,
+        currency: "NGN",
+        reference,
+        email: userEmail ?? "",
+        firstname: "Smsvital",
+        lastname: "User",
+        mobile: "00000000000",
+        country: "NG",
+        description: "Smsvital wallet top-up",
+        RedirectUrl: `${window.location.origin}/payment/verify`,
+        onCompleted: async (data: any) => {
+          try {
+            const verifyRes = await fetch("/api/payment/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ tx_ref: data.reference ?? reference }),
+            });
+            const verifyData = await verifyRes.json();
+            if (verifyData.ok) {
+              setBalance(verifyData.newBalance);
+              setTxns((ts: any[]) => [verifyData.txn, ...ts]);
+              pushToast({ kind: "ok", msg: "Wallet topped up successfully!" });
+              onClose();
+            } else if (verifyData.error === "Payment already credited") {
+              pushToast({ msg: "Payment already applied to your wallet" });
+              onClose();
+            } else {
+              pushToast({ kind: "bad", msg: verifyData.error ?? "Verification failed — contact support" });
+            }
+          } catch {
+            pushToast({ kind: "bad", msg: "Network error during verification" });
+          } finally {
+            setLoading(false);
+          }
+        },
+        onClose: () => {
+          setLoading(false);
+        },
+        onError: (_err: any) => {
+          pushToast({ kind: "bad", msg: "Payment error — please try again" });
+          setLoading(false);
+        },
+      });
+
+      checkout.init();
     } catch {
       pushToast({ kind: "bad", msg: "Network error — please try again" });
-    } finally {
       setLoading(false);
     }
   };
@@ -65,7 +133,7 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
           </div>
         </div>
         <button onClick={handlePay} disabled={loading} className="btn btn-primary" style={{ width: "100%", padding: "15px", borderRadius: 13, fontSize: 16 }}>
-          {loading ? <><Icon name="refresh" size={16}/>Redirecting…</> : <><Icon name="lock" size={16}/>Pay {fmt(amt)} via TransactPay</>}
+          {loading ? <><Icon name="refresh" size={16}/>Processing…</> : <><Icon name="lock" size={16}/>Pay {fmt(amt)} via TransactPay</>}
         </button>
         <div style={{ fontSize: 11.5, color: "var(--txt-3)", textAlign: "center", marginTop: 10 }}>
           Minimum ₦500 · Secured by TransactPay
