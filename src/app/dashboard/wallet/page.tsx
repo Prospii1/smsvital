@@ -6,7 +6,8 @@ import { Icon, fmt, useToast } from "@/components/ui/Primitives";
 import { useApp } from "@/components/Providers";
 
 function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: string | null }) {
-  const [amt, setAmt] = useState(1000);
+  const [amtStr, setAmtStr] = useState("1000");
+  const amt = Number(amtStr) || 0;
   const [loading, setLoading] = useState(false);
   const pushToast = useToast();
   const { setBalance, setTxns } = useApp();
@@ -140,7 +141,7 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
         <div className="mono" style={{ textAlign: "center", fontSize: 46, fontWeight: 700, margin: "8px 0 18px" }}>{fmt(amt)}</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8, marginBottom: 18 }}>
           {presets.map(p => (
-            <button key={p} onClick={() => setAmt(p)} className="btn" style={{ padding: "12px 0", borderRadius: 11, fontSize: 14, fontWeight: 700,
+            <button key={p} onClick={() => setAmtStr(String(p))} className="btn" style={{ padding: "12px 0", borderRadius: 11, fontSize: 14, fontWeight: 700,
               background: amt === p ? "var(--accent-soft)" : "var(--surface-2)",
               color: amt === p ? "var(--accent-bright)" : "var(--txt-2)",
               boxShadow: amt === p ? "inset 0 0 0 1.5px var(--accent-line)" : "inset 0 0 0 1px var(--line)" }}>
@@ -153,8 +154,8 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
             background: "var(--surface-2)", boxShadow: "inset 0 0 0 1px var(--line-2)", borderRadius: 12 }}>
             <span style={{ color: "var(--txt-3)", fontSize: 14, fontFamily: "var(--mono)" }}>₦</span>
             <input
-              type="number" min={1} step={100} value={amt}
-              onChange={e => setAmt(Math.max(1, Number(e.target.value)))}
+              type="number" min={1} step={100} value={amtStr}
+              onChange={e => setAmtStr(e.target.value)}
               style={{ flex: 1, background: "transparent", border: "none", outline: "none",
                 color: "var(--txt)", fontSize: 18, fontFamily: "var(--mono)", fontWeight: 700 }}
             />
