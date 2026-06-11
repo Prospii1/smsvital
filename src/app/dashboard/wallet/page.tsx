@@ -63,9 +63,17 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
       const firstname = nameParts[0] || "User";
       const lastname  = nameParts[1] || "Customer";
 
+      const tpApiKey = process.env.NEXT_PUBLIC_TRANSACTPAY_PUBLIC_KEY;
+      const tpEncKey = process.env.NEXT_PUBLIC_TRANSACTPAY_ENCRYPTION_KEY;
+      if (!tpApiKey || !tpEncKey) {
+        pushToast({ kind: "bad", msg: "Payment not configured — contact support" });
+        setLoading(false);
+        return;
+      }
+
       const checkout = new CheckoutClass({
-        apiKey: process.env.NEXT_PUBLIC_TRANSACTPAY_PUBLIC_KEY ?? "PGW-PUBLICKEY-TEST-59A0662C23504AFCA30846B11D52E766",
-        encryptionKey: process.env.NEXT_PUBLIC_TRANSACTPAY_ENCRYPTION_KEY ?? "NDA5NiE8UlNBS2V5VmFsdWU+PE1vZHVsdXM+dlpYbWpoSGFISmVUMU1xNFphU2FPQTJ1RnlMd0VLODNLUGtnckJWZ0FRa2w3eS9EZGZySG5UVHkyd2Y0dmw1UUNsWStxOC9hVWVGRWpDV3pTUWIvWEhHRkxBZHhJMlVvMURua2FpTmgrbTRCKzBqbUhaWDIvS2RQNlk4cFhkdC9za0JHcEZNS1RiSTd4bVlDNFZJcTI3RllKMjlzUHhLT3pFbVk3MzV6cm1PU2RMQ2lMRUdaQU5WNCtCMGFydzQ0QzZ0TzdhVTM0WS90dW5OYkVmOEpOQzZDSHkreHowb1BlVE0xU1NmbDJoVXpudnBzWTFWREI5Zkk2U2I3UjFkei9nWkRuL3RtWUw2NjJlM0NjMmZ0SlJZUzB6QUU2S2tQODhmaUNmM1Y2YWMzUS94MFJtZzFieWJScDVJNFl6T1F5UU16cXU2Zk9rTU5STzZXWDJXSzBXc0FMbVJJYnNpSzZIQlNGUkNpMWlmeDljNTNBK2EvTEllZHF5aDQ4WmFrUFphSXlmMzB4ekU0YVFqWlpZQzRLTUdzNCtrdSswRW9hNkhVYlp3bFBxckdLVHJxSWJLekZMd2QxaFZjRDBHaGw1MkllYktKcmlmN25ndFkrVlp6ZHU0WEludi9LaUVpRm5FV3lWeWV6YzZkRkQwb2pOZ1lOK1BMVVNXa1l0b1loTDlJRU1CbHI0aHI4R0VEUlF5ZHQ1RGoyaW14d1dubktFWEcvWStCM2dXbFl3cnRqYjJidjN5YStzRFQrL2lTc3pPdVUxVCt4dVVSbDJhZFlnYVN4NWpRQW9VM3Irb21PN1F6UFQ1elZPR3B2VHZQUFQzdExnZTNEK3BIcTV6NUF1aUg2Z1BuUklDT2w5alJzMzdjYnAzMENicTljd2RaV3pmWUVXQlBzWjA9PC9Nb2R1bHVzPjxFeHBvbmVudD5BUUFCPC9FeHBvbmVudD48L1JTQUtleVZhbHVlPg==",
+        apiKey: tpApiKey,
+        encryptionKey: tpEncKey,
         amount: amt,
         currency: "NGN",
         reference,
