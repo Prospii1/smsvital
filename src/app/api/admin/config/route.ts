@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireAdmin } from "@/lib/admin-guard";
+import { clearCatalogCache } from "@/app/api/sms/catalog/route";
 
 interface Tier { from: number; to: number; percent: number; }
 
@@ -55,5 +56,9 @@ export async function PUT(request: Request) {
     .upsert({ key: "markup", value: { tiers, min_usd, usd_to_ngn } });
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  // Clear in-memory catalog cache so new markup applies immediately on this instance
+  clearCatalogCache();
+
   return Response.json({ ok: true });
 }

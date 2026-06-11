@@ -5,7 +5,7 @@ import { getMarkup, toNgn, type Markup } from "@/lib/pricing";
 const SMSPVA_V1 = "https://smspva.com";
 const REF_COUNTRY = "VN";
 const BATCH = 40;
-const CACHE_TTL = 60 * 60 * 1000;
+const CACHE_TTL = 5 * 60 * 1000; // 5 min — short enough that markup changes propagate quickly
 
 let cache: { data: CatalogData; expires: number } | null = null;
 
@@ -163,6 +163,7 @@ export async function GET() {
 }
 
 export { cache };
+export function clearCatalogCache() { cache = null; }
 
 export async function DELETE() {
   const { requireAdmin } = await import("@/lib/admin-guard");
