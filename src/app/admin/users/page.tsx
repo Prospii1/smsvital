@@ -12,8 +12,11 @@ export default function AdminUsers() {
   useEffect(() => {
     fetch("/api/admin/users")
       .then(r => r.json())
-      .then(d => { if (Array.isArray(d)) setUsers(d); })
-      .catch(() => {})
+      .then(d => {
+        console.log("admin/users response:", JSON.stringify(d));
+        if (Array.isArray(d)) setUsers(d);
+      })
+      .catch(e => console.error("admin/users fetch error:", e))
       .finally(() => setLoading(false));
   }, []);
 
