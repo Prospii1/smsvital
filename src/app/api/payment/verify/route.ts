@@ -1,6 +1,9 @@
 import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getAuthenticatedUser } from "@/lib/admin-guard";
+import { rateLimit } from "@/lib/rate-limit";
+
+const SUCCESS_STATUSES = ["successful", "completed", "paid", "success"];
 
 function xmlRsaKeyToPem(base64Xml: string): string {
   const xml = Buffer.from(base64Xml, "base64").toString("utf8");
@@ -52,6 +55,10 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (!rateLimit(`verify:${authUser.userId}`, 10, 60_000)) {
+    return Response.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const body = await request.json().catch(() => null);
   if (!body?.tx_ref) return Response.json({ error: "Missing reference" }, { status: 400 });
 
@@ -76,7 +83,6 @@ export async function POST(request: Request) {
   });
 
   const data = await res.json();
-  console.log("TransactPay order/status raw response:", JSON.stringify(data));
 
   if (!res.ok) {
     console.error("TransactPay status check failed:", res.status, JSON.stringify(data));
@@ -86,35 +92,59 @@ export async function POST(request: Request) {
   // data.data may be nested; handle both shapes
   const tx = data?.data ?? data;
   const txStatus = (tx?.status ?? tx?.paymentStatus ?? "").toLowerCase();
-  console.log("TransactPay tx status:", txStatus, "| full tx:", JSON.stringify(tx));
 
-  const FAILED_STATUSES = ["failed", "cancelled", "rejected", "expired"];
-  if (FAILED_STATUSES.includes(txStatus)) {
+  // Explicit success allowlist — only proceed on known-good statuses.
+  if (!SUCCESS_STATUSES.includes(txStatus)) {
     return Response.json({ error: "Payment not successful", status: tx?.status }, { status: 402 });
   }
-  // Accept anything that isn't explicitly failed — "successful", "completed", "paid", "success" etc.
-  if (!txStatus) {
-    return Response.json({ error: "Could not determine payment status", status: tx?.status }, { status: 402 });
-  }
-  if (tx?.currency && tx.currency !== "NGN") {
+
+  // Currency must be present and NGN.
+  if (!tx?.currency || tx.currency !== "NGN") {
     return Response.json({ error: "Invalid currency" }, { status: 400 });
   }
 
-  const amountNgn = tx.amount as number;
+  // Amount must be a positive number.
+  const amountNgn = tx?.amount;
+  if (typeof amountNgn !== "number" || !Number.isFinite(amountNgn) || amountNgn <= 0) {
+    return Response.json({ error: "Invalid amount" }, { status: 400 });
+  }
 
-  // Idempotency — check if this reference was already credited
-  const txnId = `TXP-${tx_ref}`;
-  const { data: existing } = await supabaseAdmin
-    .from("transactions")
-    .select("id")
-    .eq("id", txnId)
+  // Load the payment record created at initiate-time and validate it.
+  const { data: payment } = await supabaseAdmin
+    .from("payments")
+    .select("reference, user_id, amount_expected, status")
+    .eq("reference", tx_ref)
     .maybeSingle();
 
-  if (existing) {
+  if (!payment) {
+    return Response.json({ error: "Unknown payment reference" }, { status: 404 });
+  }
+  if (payment.user_id !== authUser.userId) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (payment.status === "completed") {
     return Response.json({ error: "Payment already credited" }, { status: 409 });
   }
 
-  // Credit balance atomically
+  // Validate the paid amount matches what we expected (₦1 tolerance for rounding).
+  if (Math.abs(Number(payment.amount_expected) - amountNgn) > 1) {
+    return Response.json({ error: "Amount mismatch" }, { status: 402 });
+  }
+
+  // Atomically claim the payment: flip pending -> completed FIRST. If 0 rows
+  // are returned, another request already processed it -> 409 (no double-credit).
+  const { data: claimed } = await supabaseAdmin
+    .from("payments")
+    .update({ status: "completed" })
+    .eq("reference", tx_ref)
+    .eq("status", "pending")
+    .select("reference");
+
+  if (!claimed || claimed.length === 0) {
+    return Response.json({ error: "Payment already credited" }, { status: 409 });
+  }
+
+  // Credit balance atomically (only reachable once we've claimed the payment).
   const { data: newBalance, error: creditError } = await supabaseAdmin
     .rpc("credit_balance", { user_id: authUser.userId, amount: amountNgn });
 
@@ -123,6 +153,7 @@ export async function POST(request: Request) {
   }
 
   // Record transaction
+  const txnId = `TXP-${tx_ref}`;
   const txnRecord = {
     id: txnId,
     t: "topup",

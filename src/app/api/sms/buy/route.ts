@@ -1,6 +1,7 @@
 import { getAuthenticatedUser } from "@/lib/admin-guard";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getMarkup, toNgn, fetchSmspvaPrice } from "@/lib/pricing";
+import { rateLimit } from "@/lib/rate-limit";
 
 const SMSPVA_BASE = "https://api.smspva.com";
 const PRICE_TOLERANCE = 5; // NGN — allow ±5 rounding difference
@@ -14,6 +15,10 @@ export async function POST(request: Request) {
   const authUser = await getAuthenticatedUser();
   if (!authUser) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!rateLimit(`buy:${authUser.userId}`, 20, 60_000)) {
+    return Response.json({ error: "Too many requests" }, { status: 429 });
   }
 
   const body = await request.json().catch(() => null);
