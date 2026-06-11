@@ -82,10 +82,10 @@ export default function LiveOrderScreen() {
 
   // Real mode: poll SMSPVA every 4.5s
   useEffect(() => {
-    if (isDemo || phase !== "waiting" || !order?.smspvaOrderId) return;
+    if (isDemo || phase !== "waiting" || !order?.id) return;
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/sms/poll/${order.smspvaOrderId}`);
+        const res = await fetch(`/api/sms/poll/${order.id}`);
         if (res.status === 200) {
           const data = await res.json();
           const match = String(data.sms ?? '').match(/\b\d{4,8}\b/);
@@ -104,20 +104,23 @@ export default function LiveOrderScreen() {
     }, 4500);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order?.smspvaOrderId, phase, isDemo]);
+  }, [order?.id, phase, isDemo]);
 
   // Real mode: auto-ban number at 580s if no SMS received
   useEffect(() => {
-    if (isDemo || phase !== "waiting" || secs < 580 || !order?.smspvaOrderId) return;
-    fetch(`/api/sms/ban/${order.smspvaOrderId}`, { method: "DELETE" }).catch(() => {});
-    pushToast({ kind: "bad", msg: "Order timed out — number banned, refunding…" });
+    if (isDemo || phase !== "waiting" || secs < 580 || !order?.id) return;
     setPhase("expired");
     setOrders((os: any[]) => os.map(o => o.id === id ? { ...o, status: "expired" } : o));
-    setBalance((b: number) => Math.round((b + (order.price ?? 0)) * 100) / 100);
-    setTxns((ts: any[]) => [{
-      id: "TXN-" + Math.floor(Math.random() * 9999), t: "refund",
-      label: `Refund · timeout`, amt: +(order.price ?? 0), ref: order.id, when: "Just now",
-    }, ...ts]);
+    pushToast({ kind: "bad", msg: "Order timed out — number banned, refunding…" });
+    fetch(`/api/sms/ban/${order.id}`, { method: "DELETE" })
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok) {
+          setBalance(d.newBalance);
+          setTxns((ts: any[]) => [d.txn, ...ts]);
+        }
+      })
+      .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secs]);
 
@@ -135,16 +138,28 @@ export default function LiveOrderScreen() {
   };
 
   const cancel = async () => {
-    if (!isDemo && order.smspvaOrderId) {
-      try { await fetch(`/api/sms/cancel/${order.smspvaOrderId}`, { method: "DELETE" }); } catch {}
+    if (isDemo) {
+      setOrders((os: any[]) => os.map(o => o.id === id ? { ...o, status: "cancelled" } : o));
+      setBalance((b: number) => Math.round((b + order.price) * 100) / 100);
+      pushToast({ kind: "bad", icon: "x", msg: "Order cancelled · refunded" });
+      router.push("/dashboard/orders");
+      return;
     }
-    pushToast({ kind: "bad", icon: "x", msg: "Order cancelled · refunded" });
-    setOrders((os: any[]) => os.map(o => o.id === id ? { ...o, status: "cancelled" } : o));
-    setBalance((b: number) => Math.round((b + order.price) * 100) / 100);
-    setTxns((ts: any[]) => [{
-      id: "TXN-" + Math.floor(Math.random() * 9999), t: "refund",
-      label: `Refund · ${svc.name}`, amt: +order.price, ref: order.id, when: "Just now",
-    }, ...ts]);
+    try {
+      const res = await fetch(`/api/sms/cancel/${order.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.ok) {
+        setOrders((os: any[]) => os.map(o => o.id === id ? { ...o, status: "cancelled" } : o));
+        setBalance(data.newBalance);
+        setTxns((ts: any[]) => [data.txn, ...ts]);
+        pushToast({ kind: "bad", icon: "x", msg: "Order cancelled · refunded" });
+      } else {
+        pushToast({ kind: "bad", msg: data.error ?? "Cancel failed — contact support" });
+      }
+    } catch {
+      pushToast({ kind: "bad", msg: "Network error — please try again" });
+      return;
+    }
     router.push("/dashboard/orders");
   };
 
