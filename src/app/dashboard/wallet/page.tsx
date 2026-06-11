@@ -72,6 +72,48 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
         return;
       }
 
+      // Shared verify handler used by both onCompleted and the poll interval
+      const verifyPayment = async (ref: string): Promise<boolean> => {
+        try {
+          const verifyRes = await fetch("/api/payment/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tx_ref: ref }),
+          });
+          const verifyData = await verifyRes.json();
+          if (verifyData.ok) {
+            setBalance(verifyData.newBalance);
+            setTxns((ts: any[]) => [verifyData.txn, ...ts]);
+            pushToast({ kind: "ok", msg: `₦${amt.toLocaleString("en-NG")} added to your wallet!` });
+            onClose();
+            return true;
+          } else if (verifyData.error === "Payment already credited") {
+            pushToast({ msg: "Payment already applied to your wallet" });
+            onClose();
+            return true;
+          }
+        } catch {}
+        return false;
+      };
+
+      // Poll every 5s for bank transfer payments where onCompleted doesn't fire
+      let pollStopped = false;
+      const pollInterval = setInterval(async () => {
+        if (pollStopped) return;
+        const done = await verifyPayment(reference);
+        if (done) {
+          pollStopped = true;
+          clearInterval(pollInterval);
+          setLoading(false);
+        }
+      }, 5000);
+
+      // Stop polling after 10 minutes
+      const pollTimeout = setTimeout(() => {
+        pollStopped = true;
+        clearInterval(pollInterval);
+      }, 10 * 60 * 1000);
+
       const checkout = new CheckoutClass({
         apiKey: tpApiKey,
         encryptionKey: tpEncKey,
@@ -86,38 +128,27 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
         description: "Smsvital wallet top-up",
         RedirectUrl: `${window.location.origin}/payment/verify`,
         onCompleted: async (data: any) => {
-          console.log("TransactPay onCompleted data:", JSON.stringify(data));
+          pollStopped = true;
+          clearInterval(pollInterval);
+          clearTimeout(pollTimeout);
           const ref = data?.reference ?? data?.orderReference ?? data?.order?.reference ?? reference;
-          try {
-            const verifyRes = await fetch("/api/payment/verify", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ tx_ref: ref }),
-            });
-            const verifyData = await verifyRes.json();
-            console.log("Verify response:", JSON.stringify(verifyData));
-            if (verifyData.ok) {
-              setBalance(verifyData.newBalance);
-              setTxns((ts: any[]) => [verifyData.txn, ...ts]);
-              pushToast({ kind: "ok", msg: `₦${amt.toLocaleString("en-NG")} added to your wallet!` });
-              onClose();
-            } else if (verifyData.error === "Payment already credited") {
-              pushToast({ msg: "Payment already applied to your wallet" });
-              onClose();
-            } else {
-              pushToast({ kind: "bad", msg: verifyData.error ?? "Verification failed — contact support" });
-            }
-          } catch {
-            pushToast({ kind: "bad", msg: "Network error during verification" });
-          } finally {
-            setLoading(false);
+          const done = await verifyPayment(ref);
+          if (!done) {
+            pushToast({ kind: "bad", msg: "Verification failed — contact support" });
           }
+          setLoading(false);
         },
         onClose: () => {
+          pollStopped = true;
+          clearInterval(pollInterval);
+          clearTimeout(pollTimeout);
           setLoading(false);
         },
         onError: (err: any) => {
           console.log("TransactPay onError:", JSON.stringify(err));
+          pollStopped = true;
+          clearInterval(pollInterval);
+          clearTimeout(pollTimeout);
           pushToast({ kind: "bad", msg: "Payment error — please try again" });
           setLoading(false);
         },
