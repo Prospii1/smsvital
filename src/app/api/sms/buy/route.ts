@@ -89,9 +89,18 @@ export async function POST(request: Request) {
   // Build order and transaction records
   const orderId = "ORD-" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase();
   const txnId   = "TXN-" + orderId.slice(4);
-  const rawNum  = String(smspvaData.phoneNumber ?? "");
-  const number  = rawNum.startsWith("+") ? rawNum : "+" + rawNum;
+  // SMSPVA new API returns `number` and `id`; old API used `phoneNumber` and `orderId`
+  const rawNum  = String(smspvaData.number ?? smspvaData.phoneNumber ?? "");
+  const number  = rawNum ? (rawNum.startsWith("+") ? rawNum : "+" + rawNum) : "";
+  const smspvaOrderId = smspvaData.id ?? smspvaData.orderId ?? null;
   const now     = new Date().toISOString();
+
+  if (!number || !smspvaOrderId) {
+    // Got a response but missing critical fields — refund and abort
+    console.error("SMSPVA response missing number or orderId:", JSON.stringify(smspvaData));
+    await supabaseAdmin.rpc("credit_balance", { user_id: authUser.userId, amount: realPrice });
+    return Response.json({ error: "No number available — you have been refunded", statusCode: 501 }, { status: 400 });
+  }
 
   const order = {
     id: orderId,
@@ -102,8 +111,8 @@ export async function POST(request: Request) {
     price: realPrice,
     status: "waiting",
     age: "just now",
-    smspvaOrderId: smspvaData.orderId,
-    expires: smspvaData.orderExpireIn ?? 600,
+    smspvaOrderId,
+    expires: smspvaData.orderExpireIn ?? smspvaData.expireIn ?? 600,
   };
 
   const txn = {
