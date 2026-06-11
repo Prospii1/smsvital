@@ -5,9 +5,9 @@ import { getMarkup, toNgn, type Markup } from "@/lib/pricing";
 const SMSPVA_V1 = "https://smspva.com";
 const REF_COUNTRY = "VN";
 const BATCH = 40;
-const CACHE_TTL = 5 * 60 * 1000; // 5 min — short enough that markup changes propagate quickly
+const CACHE_TTL = 5 * 60 * 1000;
 
-let cache: { data: CatalogData; expires: number } | null = null;
+let cache: { data: CatalogData; expires: number; markupHash: string } | null = null;
 
 interface CatalogEntry { price: number; count: number; }
 interface ServiceInfo {
@@ -65,8 +65,7 @@ async function fetchPrice(apiKey: string, svc: string, country: string): Promise
   return null;
 }
 
-async function buildCatalog(): Promise<CatalogData> {
-  const markup = await getMarkup();
+async function buildCatalog(markup: Markup): Promise<CatalogData> {
   const apiKey = process.env.SMSPVA_API_KEY;
   const prices: Record<string, CatalogEntry> = {};
   const servicesMap: Map<string, ServiceInfo> = new Map();
@@ -155,9 +154,14 @@ async function buildCatalog(): Promise<CatalogData> {
 
 export async function GET() {
   const now = Date.now();
-  if (!cache || cache.expires < now) {
-    const data = await buildCatalog();
-    cache = { data, expires: now + CACHE_TTL };
+
+  // Always check current markup hash so cache is invalidated when markup changes
+  const currentMarkup = await getMarkup();
+  const markupHash = JSON.stringify(currentMarkup);
+
+  if (!cache || cache.expires < now || cache.markupHash !== markupHash) {
+    const data = await buildCatalog(currentMarkup);
+    cache = { data, expires: now + CACHE_TTL, markupHash };
   }
   return Response.json(cache.data);
 }
