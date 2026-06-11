@@ -4,7 +4,7 @@ import { getMarkup, toNgn, fetchSmspvaPrice } from "@/lib/pricing";
 import { rateLimit } from "@/lib/rate-limit";
 
 const SMSPVA_BASE = "https://api.smspva.com";
-const PRICE_TOLERANCE = 5; // NGN — allow ±5 rounding difference
+const PRICE_TOLERANCE = 50; // NGN — allow ±50 to handle markup changes between catalog refresh and purchase
 
 export async function POST(request: Request) {
   const apiKey = process.env.SMSPVA_API_KEY;
