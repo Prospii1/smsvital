@@ -76,6 +76,7 @@ export async function POST(request: Request) {
     cache: "no-store",
   });
   const smspvaData = await smspvaRes.json();
+  console.log("SMSPVA buy response:", JSON.stringify(smspvaData));
 
   if (!smspvaRes.ok || smspvaData.error) {
     // Refund — SMSPVA failed after we already deducted
