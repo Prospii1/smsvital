@@ -115,11 +115,25 @@ export async function POST(request: Request) {
     when: "Just now",
   };
 
-  // Write order + transaction to DB (non-blocking — balance already secured)
-  await Promise.allSettled([
+  // Write order + transaction to DB
+  const [orderResult, txnResult] = await Promise.allSettled([
     supabaseAdmin.from("orders").insert({ id: orderId, user_id: authUser.userId, data: order, created_at: now }),
     supabaseAdmin.from("transactions").insert({ id: txnId, user_id: authUser.userId, data: txn, created_at: now }),
   ]);
+
+  if (orderResult.status === "rejected" || (orderResult.status === "fulfilled" && orderResult.value.error)) {
+    const err = orderResult.status === "rejected" ? orderResult.reason : orderResult.value.error;
+    console.error("Failed to save order to DB:", err);
+    // Refund and return error — user should not lose money without an order record
+    await supabaseAdmin.rpc("credit_balance", { user_id: authUser.userId, amount: realPrice });
+    return Response.json({ error: "Order could not be saved — you have been refunded", statusCode: 500 }, { status: 500 });
+  }
+
+  if (txnResult.status === "rejected" || (txnResult.status === "fulfilled" && txnResult.value.error)) {
+    const err = txnResult.status === "rejected" ? txnResult.reason : txnResult.value.error;
+    console.error("Failed to save transaction to DB:", err);
+    // Non-fatal — order saved, just log the missing transaction
+  }
 
   return Response.json({ newBalance, orderId, order, txn });
 }
