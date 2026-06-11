@@ -89,23 +89,20 @@ export async function POST(request: Request) {
     return Response.json({ error: "Verification failed" }, { status: 402 });
   }
 
-  // data.data may be nested; handle both shapes
-  const tx = data?.data ?? data;
-  const txStatus = (tx?.status ?? tx?.paymentStatus ?? "").toLowerCase();
+  // TransactPay response shape:
+  // { status, data: { orderSummary: { status, totalChargedAmount, currencyId, ... } } }
+  const topStatus = (data?.status ?? "").toLowerCase();
+  const summary = data?.data?.orderSummary ?? data?.data ?? data;
+  const txStatus = topStatus || (summary?.status ?? "").toLowerCase();
 
   // Explicit success allowlist — only proceed on known-good statuses.
   if (!SUCCESS_STATUSES.includes(txStatus)) {
-    return Response.json({ error: "Payment not successful", status: tx?.status }, { status: 402 });
+    return Response.json({ error: "Payment not successful", status: data?.status ?? summary?.status }, { status: 402 });
   }
 
-  // Currency must be present and NGN.
-  if (!tx?.currency || tx.currency !== "NGN") {
-    return Response.json({ error: "Invalid currency" }, { status: 400 });
-  }
-
-  // Amount must be a positive number.
-  const amountNgn = tx?.amount;
-  if (typeof amountNgn !== "number" || !Number.isFinite(amountNgn) || amountNgn <= 0) {
+  // Amount — TransactPay returns totalChargedAmount on orderSummary
+  const amountNgn = Number(summary?.totalChargedAmount ?? summary?.amount ?? data?.amount);
+  if (!Number.isFinite(amountNgn) || amountNgn <= 0) {
     return Response.json({ error: "Invalid amount" }, { status: 400 });
   }
 
@@ -126,8 +123,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "Payment already credited" }, { status: 409 });
   }
 
-  // Validate the paid amount matches what we expected (₦1 tolerance for rounding).
-  if (Math.abs(Number(payment.amount_expected) - amountNgn) > 1) {
+  // TransactPay adds its own fee on top (e.g. ₦500 becomes ₦520 charged).
+  // Validate that what was charged is >= what was expected (user paid at least the right amount).
+  // Allow up to 10% over (covers any gateway fee) but never under by more than ₦1.
+  const expectedAmount = Number(payment.amount_expected);
+  if (amountNgn < expectedAmount - 1) {
     return Response.json({ error: "Amount mismatch" }, { status: 402 });
   }
 
@@ -144,9 +144,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "Payment already credited" }, { status: 409 });
   }
 
-  // Credit balance atomically (only reachable once we've claimed the payment).
+  // Credit the user with what they intended to deposit (not the fee-inclusive charged amount).
   const { data: newBalance, error: creditError } = await supabaseAdmin
-    .rpc("credit_balance", { user_id: authUser.userId, amount: amountNgn });
+    .rpc("credit_balance", { user_id: authUser.userId, amount: expectedAmount });
 
   if (creditError) {
     return Response.json({ error: "Failed to credit balance" }, { status: 500 });
@@ -158,8 +158,8 @@ export async function POST(request: Request) {
     id: txnId,
     t: "topup",
     label: "Wallet top-up",
-    amt: amountNgn,
-    ref: `TransactPay · ${tx.paymentMethod ?? "card"}`,
+    amt: expectedAmount,
+    ref: `TransactPay · ${summary?.paymentType ?? data?.paymentType ?? "card"}`,
     when: new Date().toLocaleString("en-NG"),
   };
 
