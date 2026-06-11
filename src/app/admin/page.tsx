@@ -54,6 +54,7 @@ export default function AdminOverview() {
     successRate?: number; totalRevenue?: number;
   } | null>(null);
   const [supplierBalance, setSupplierBalance] = useState<string | null>(null);
+  const [supplierUsername, setSupplierUsername] = useState<string | null>(null);
 
   // Markup state
   const [tiers, setTiers] = useState<Tier[]>(DEFAULT_TIERS);
@@ -65,7 +66,10 @@ export default function AdminOverview() {
 
   useEffect(() => {
     fetch("/api/admin/stats").then(r => r.ok ? r.json() : null).then(d => d?.revenue && setChartData(d)).catch(() => {});
-    fetch("/api/admin/supplier-balance").then(r => r.ok ? r.json() : null).then(d => d?.balance !== undefined && setSupplierBalance(d.balance)).catch(() => {});
+    fetch("/api/admin/supplier-balance").then(r => r.ok ? r.json() : null).then(d => {
+      if (d?.balance !== undefined) setSupplierBalance(d.balance);
+      if (d?.username) setSupplierUsername(d.username);
+    }).catch(() => {});
     fetch("/api/admin/orders").then(r => r.ok ? r.json() : null).then((data: any[]) => {
       if (!Array.isArray(data)) return;
       setRecentOrders(data.slice(0, 8));
@@ -198,7 +202,7 @@ export default function AdminOverview() {
           <Icon name="phone" size={17} stroke={Number(supplierBalance) > 0 ? "var(--ok)" : "var(--bad)"}/>
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>SMSPVA Supplier Account</div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>SMSPVA Supplier Account{supplierUsername ? ` · ${supplierUsername}` : ""}</div>
           <div style={{ fontSize: 12, color: "var(--txt-3)", marginTop: 2 }}>
             Balance:{" "}
             <span style={{ fontFamily: "var(--mono)", fontWeight: 700, color: supplierBalance === null ? "var(--txt-3)" : (Number(supplierBalance) > 0 ? "var(--ok)" : "var(--bad)") }}>

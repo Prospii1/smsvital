@@ -13,7 +13,8 @@ export async function GET() {
     });
     const data = await res.json();
     const balance = data?.data?.balance ?? null;
-    return Response.json({ balance });
+    const username = data?.data?.username ?? data?.data?.login ?? data?.data?.email ?? null;
+    return Response.json({ balance, username });
   } catch {
     return Response.json({ balance: null, error: "Failed to fetch" });
   }
