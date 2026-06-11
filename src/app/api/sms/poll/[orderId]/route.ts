@@ -32,10 +32,12 @@ export async function GET(
     cache: "no-store",
   });
 
-  const data = await res.json();
+  const raw = await res.json();
+  // SMSPVA wraps response in `data` field
+  const data = raw?.data ?? raw;
 
-  if (data.statusCode === 200 || data.sms) {
-    return Response.json(data, { status: 200 });
+  if (data.sms || raw.statusCode === 200) {
+    return Response.json({ sms: data.sms ?? data.text ?? data.message }, { status: 200 });
   }
 
   return Response.json({ waiting: true }, { status: 202 });

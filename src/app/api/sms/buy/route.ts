@@ -75,14 +75,17 @@ export async function POST(request: Request) {
     headers: { apikey: apiKey },
     cache: "no-store",
   });
-  const smspvaData = await smspvaRes.json();
-  console.log("SMSPVA buy response:", JSON.stringify(smspvaData));
+  const smspvaRaw = await smspvaRes.json();
+  console.log("SMSPVA buy response:", JSON.stringify(smspvaRaw));
 
-  if (!smspvaRes.ok || smspvaData.error) {
+  // SMSPVA wraps response in a `data` field: { statusCode, data: { orderId, phoneNumber, ... } }
+  const smspvaData = smspvaRaw?.data ?? smspvaRaw;
+
+  if (!smspvaRes.ok || smspvaRaw.error || (smspvaRaw.statusCode && smspvaRaw.statusCode !== 200)) {
     // Refund — SMSPVA failed after we already deducted
     await supabaseAdmin.rpc("credit_balance", { user_id: authUser.userId, amount: realPrice });
     return Response.json(
-      { error: smspvaData.error || "Failed to get number", statusCode: smspvaData.statusCode ?? smspvaRes.status },
+      { error: smspvaRaw.error || "Failed to get number", statusCode: smspvaRaw.statusCode ?? smspvaRes.status },
       { status: 400 }
     );
   }
@@ -90,7 +93,7 @@ export async function POST(request: Request) {
   // Build order and transaction records
   const orderId = "ORD-" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase();
   const txnId   = "TXN-" + orderId.slice(4);
-  // SMSPVA new API returns `number` and `id`; old API used `phoneNumber` and `orderId`
+  // Handle both field name variants across SMSPVA API versions
   const rawNum  = String(smspvaData.number ?? smspvaData.phoneNumber ?? "");
   const number  = rawNum ? (rawNum.startsWith("+") ? rawNum : "+" + rawNum) : "";
   const smspvaOrderId = smspvaData.id ?? smspvaData.orderId ?? null;
