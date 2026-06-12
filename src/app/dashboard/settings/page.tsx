@@ -149,27 +149,108 @@ function ChangePasswordSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
+function EditNameSheet({ onClose }: { onClose: () => void }) {
+  const { firstname, lastname, setName } = useApp();
+  const [fn, setFn] = useState(firstname);
+  const [ln, setLn] = useState(lastname);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const pushToast = useToast();
+
+  const handleSave = async () => {
+    if (!fn.trim()) { setError("First name is required."); return; }
+    setError("");
+    setLoading(true);
+    try {
+      setName(fn.trim(), ln.trim());
+      pushToast({ kind: "ok", msg: "Name updated" });
+      onClose();
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputBox = { display: "flex", alignItems: "center", gap: 10, padding: "13px 14px", background: "var(--surface-2)", boxShadow: "inset 0 0 0 1px var(--line-2)", borderRadius: 12 } as const;
+  const inputStyle = { flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--txt)", fontSize: 15, fontFamily: "var(--sans)" } as const;
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: "var(--surface)", borderRadius: "24px 24px 0 0", padding: "10px 20px 34px", boxShadow: "0 -20px 60px rgba(0,0,0,0.6)" }}>
+        <div style={{ width: 40, height: 4, borderRadius: 99, background: "var(--line-2)", margin: "4px auto 18px" }}/>
+        <div style={{ fontWeight: 700, fontSize: 19, marginBottom: 4 }}>Your name</div>
+        <div style={{ fontSize: 12.5, color: "var(--txt-3)", marginBottom: 20 }}>Used to pre-fill the payment form so you don&apos;t have to type it each time</div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <label className="eyebrow">First name</label>
+            <div style={inputBox}>
+              <Icon name="user" size={17} stroke="var(--txt-3)"/>
+              <input type="text" value={fn} onChange={e => setFn(e.target.value)}
+                placeholder="e.g. Emeka" autoComplete="given-name" style={inputStyle}/>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <label className="eyebrow">Last name</label>
+            <div style={inputBox}>
+              <Icon name="user" size={17} stroke="var(--txt-3)"/>
+              <input type="text" value={ln} onChange={e => setLn(e.target.value)}
+                placeholder="e.g. Obi" autoComplete="family-name" style={inputStyle}/>
+            </div>
+          </div>
+
+          {error && (
+            <div style={{ padding: "11px 14px", borderRadius: 10, background: "var(--bad-soft)", border: "1px solid rgba(251,111,132,0.3)", fontSize: 13.5, color: "var(--bad)" }}>
+              {error}
+            </div>
+          )}
+
+          <button onClick={handleSave} disabled={loading} className="btn btn-primary" style={{ width: "100%", padding: "15px", borderRadius: 13, fontSize: 16, marginTop: 4 }}>
+            {loading ? "Saving…" : "Save name"}
+            {!loading && <Icon name="chevR" size={17} stroke="#0a0612"/>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsScreen() {
-  const { balance, tweaks, setTweaks, orders, userEmail, userJoinedAt } = useApp();
+  const { balance, tweaks, setTweaks, orders, userEmail, userJoinedAt, firstname, lastname } = useApp();
   const router = useRouter();
   const [pwSheet, setPwSheet] = useState(false);
+  const [nameSheet, setNameSheet] = useState(false);
 
   return (
     <div className="screen-in" style={{ display: "flex", flexDirection: "column", paddingTop: 10 }}>
       <TopBar title="Account" />
       <div className="dash-narrow" style={{ padding: "0 18px 18px" }}>
         <div className="card" style={{ display: "flex", alignItems: "center", gap: 13, padding: "15px", borderRadius: 16, marginBottom: 18 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 14, background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 0 0 1px var(--accent-line)" }}>
-            <Icon name="user" size={24} stroke="var(--accent-bright)"/>
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 0 0 1px var(--accent-line)", flexShrink: 0 }}>
+            {firstname ? (
+              <span style={{ fontFamily: "var(--mono)", fontWeight: 700, fontSize: 18, color: "var(--accent-bright)" }}>
+                {firstname[0].toUpperCase()}{lastname ? lastname[0].toUpperCase() : ""}
+              </span>
+            ) : (
+              <Icon name="user" size={24} stroke="var(--accent-bright)"/>
+            )}
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600, fontSize: 15.5 }}>{maskEmail(userEmail)}</div>
-            <div style={{ fontSize: 12, color: "var(--txt-3)", marginTop: 2 }}>Member since {fmtJoined(userJoinedAt)} · {orders.length} orders</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 15.5 }}>
+              {firstname ? `${firstname}${lastname ? " " + lastname : ""}` : maskEmail(userEmail)}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--txt-3)", marginTop: 2 }}>
+              {firstname && <span style={{ marginRight: 6 }}>{maskEmail(userEmail)} · </span>}
+              Member since {fmtJoined(userJoinedAt)} · {orders.length} orders
+            </div>
           </div>
         </div>
 
         <div className="card" style={{ overflow: "hidden", borderRadius: 16 }}>
           <Row icon="wallet" label="Wallet & billing" val={fmt(balance)} onClick={() => router.push("/dashboard/wallet")}/>
+          <Row icon="user" label="Full name" val={firstname ? `${firstname}${lastname ? " " + lastname : ""}` : "Not set"} onClick={() => setNameSheet(true)}/>
           <Row icon="lock" label="Change password" onClick={() => setPwSheet(true)}/>
         </div>
 
@@ -236,6 +317,7 @@ export default function SettingsScreen() {
       </div>
 
       {pwSheet && <ChangePasswordSheet onClose={() => setPwSheet(false)} />}
+      {nameSheet && <EditNameSheet onClose={() => setNameSheet(false)} />}
     </div>
   );
 }

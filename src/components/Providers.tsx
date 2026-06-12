@@ -15,6 +15,9 @@ interface AppState {
   setTweaks: React.Dispatch<React.SetStateAction<any>>;
   userEmail: string | null;
   userJoinedAt: string | null;
+  firstname: string;
+  lastname: string;
+  setName: (firstname: string, lastname: string) => void;
   catalog: any;
   services: any[];
 }
@@ -46,6 +49,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userJoinedAt, setUserJoinedAt] = useState<string | null>(null);
+  const [firstname, setFirstname] = useState("");
+  const [lastname, setLastname] = useState("");
 
   const loadUserData = useCallback(async (userId: string, email: string, createdAt: string) => {
     userIdRef.current = userId;
@@ -53,12 +58,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setUserJoinedAt(createdAt);
 
     const [{ data: profile }, { data: ordersData }, { data: txnsData }] = await Promise.all([
-      supabase.from("profiles").select("balance").eq("id", userId).maybeSingle(),
+      supabase.from("profiles").select("balance, firstname, lastname").eq("id", userId).maybeSingle(),
       supabase.from("orders").select("data").eq("user_id", userId).order("created_at", { ascending: false }),
       supabase.from("transactions").select("data").eq("user_id", userId).order("created_at", { ascending: false }),
     ]);
 
     setBalanceState(profile?.balance ?? 0);
+    setFirstname(profile?.firstname ?? "");
+    setLastname(profile?.lastname ?? "");
     setOrdersState(ordersData?.map((r: any) => r.data) ?? []);
     setTxnsState(txnsData?.map((r: any) => r.data) ?? []);
 
@@ -157,6 +164,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const setName = useCallback((fn: string, ln: string) => {
+    setFirstname(fn);
+    setLastname(ln);
+    if (userIdRef.current) {
+      supabase.from("profiles").update({ firstname: fn, lastname: ln }).eq("id", userIdRef.current).then(() => {});
+    }
+  }, [supabase]);
+
   return (
     <AppContext.Provider value={{
       balance, setBalance,
@@ -164,6 +179,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       txns, setTxns,
       tweaks, setTweaks,
       userEmail, userJoinedAt,
+      firstname, lastname, setName,
       catalog, services,
     }}>
       {children}

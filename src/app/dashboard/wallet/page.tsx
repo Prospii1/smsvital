@@ -5,7 +5,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { Icon, fmt, useToast } from "@/components/ui/Primitives";
 import { useApp } from "@/components/Providers";
 
-function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: string | null }) {
+function TopupSheet({ onClose, userEmail, profileFirstname, profileLastname }: { onClose: () => void; userEmail: string | null; profileFirstname: string; profileLastname: string }) {
   const [amtStr, setAmtStr] = useState("1000");
   const amt = Number(amtStr) || 0;
   const [loading, setLoading] = useState(false);
@@ -58,11 +58,17 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
         setLoading(false);
         return;
       }
-      // Derive a name from the email local-part as TransactPay requires non-empty firstname
-      const localPart = email.split("@")[0] ?? "user";
-      const nameParts = localPart.replace(/[._-]+/g, " ").trim().split(" ");
-      const firstname = nameParts[0] || "User";
-      const lastname  = nameParts[1] || "Customer";
+      // Use profile name if set, otherwise derive from email local-part
+      let firstname = profileFirstname.trim();
+      let lastname  = profileLastname.trim();
+      if (!firstname) {
+        const localPart = email.split("@")[0] ?? "user";
+        const nameParts = localPart.replace(/[._-]+/g, " ").trim().split(" ");
+        firstname = nameParts[0] || "User";
+        lastname  = nameParts[1] || "Customer";
+      } else if (!lastname) {
+        lastname = "User";
+      }
 
       const tpApiKey = process.env.NEXT_PUBLIC_TRANSACTPAY_PUBLIC_KEY;
       const tpEncKey = process.env.NEXT_PUBLIC_TRANSACTPAY_ENCRYPTION_KEY;
@@ -209,7 +215,7 @@ function TopupSheet({ onClose, userEmail }: { onClose: () => void; userEmail: st
 }
 
 export default function WalletScreen() {
-  const { balance, txns, userEmail } = useApp();
+  const { balance, txns, userEmail, firstname, lastname } = useApp();
   const pushToast = useToast();
   const [sheet, setSheet] = useState(false);
 
@@ -261,7 +267,7 @@ export default function WalletScreen() {
           })}
         </div>
       </div>
-      {sheet && <TopupSheet onClose={() => setSheet(false)} userEmail={userEmail} />}
+      {sheet && <TopupSheet onClose={() => setSheet(false)} userEmail={userEmail} profileFirstname={firstname} profileLastname={lastname} />}
     </div>
   );
 }
