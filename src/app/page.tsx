@@ -759,16 +759,19 @@ export default function LandingPage() {
             {[
               { title: 'Product', links: ['Browse services','How it works','Pricing','API docs','Changelog'] },
               { title: 'Company', links: ['About us','Blog','Careers','Contact','Status'] },
-              { title: 'Legal',   links: ['Privacy policy','Terms of service','Refund policy','Cookie policy'] },
+              { title: 'Legal',   links: ['Privacy policy','Terms of service'] },
             ].map(col => (
               <div key={col.title}>
                 <div style={{ fontWeight: 700, fontSize: 11, color: 'var(--txt-2)', marginBottom: 16,
                   textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--mono)' }}>{col.title}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-                  {col.links.map(l => (
-                    <a key={l} href="#" style={{ fontSize: 14, color: 'var(--txt-3)', textDecoration: 'none',
-                      transition: 'color .15s' }} className="lnav">{l}</a>
-                  ))}
+                  {col.links.map(l => {
+                    const href = l === 'Privacy policy' ? '/privacy' : l === 'Terms of service' ? '/terms' : '#';
+                    return (
+                      <Link key={l} href={href} style={{ fontSize: 14, color: 'var(--txt-3)', textDecoration: 'none',
+                        transition: 'color .15s' }} className="lnav">{l}</Link>
+                    );
+                  })}
                 </div>
               </div>
             ))}
