@@ -58,17 +58,9 @@ function TopupSheet({ onClose, userEmail, profileFirstname, profileLastname }: {
         setLoading(false);
         return;
       }
-      // Use profile name if set, otherwise derive from email local-part
-      let firstname = profileFirstname.trim();
-      let lastname  = profileLastname.trim();
-      if (!firstname) {
-        const localPart = email.split("@")[0] ?? "user";
-        const nameParts = localPart.replace(/[._-]+/g, " ").trim().split(" ");
-        firstname = nameParts[0] || "User";
-        lastname  = nameParts[1] || "Customer";
-      } else if (!lastname) {
-        lastname = "User";
-      }
+      // Use saved profile name; fall back to safe non-empty defaults
+      const firstname = profileFirstname.trim() || "Smsvital";
+      const lastname  = profileLastname.trim()  || "User";
 
       const tpApiKey = process.env.NEXT_PUBLIC_TRANSACTPAY_PUBLIC_KEY;
       const tpEncKey = process.env.NEXT_PUBLIC_TRANSACTPAY_ENCRYPTION_KEY;
