@@ -59,8 +59,9 @@ function TopupSheet({ onClose, userEmail, profileFirstname, profileLastname }: {
         return;
       }
       // Use saved profile name; fall back to safe non-empty defaults
-      const firstname = profileFirstname.trim() || "Smsvital";
-      const lastname  = profileLastname.trim()  || "User";
+      const firstname = (profileFirstname ?? "").trim() || "Smsvital";
+      const lastname  = (profileLastname  ?? "").trim() || "User";
+      console.log("[TransactPay] firstname:", JSON.stringify(firstname), "lastname:", JSON.stringify(lastname));
 
       const tpApiKey = process.env.NEXT_PUBLIC_TRANSACTPAY_PUBLIC_KEY;
       const tpEncKey = process.env.NEXT_PUBLIC_TRANSACTPAY_ENCRYPTION_KEY;
