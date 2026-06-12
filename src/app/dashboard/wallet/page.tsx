@@ -10,8 +10,14 @@ function TopupSheet({ onClose, userEmail, profileFirstname, profileLastname }: {
   const amt = Number(amtStr) || 0;
   const [loading, setLoading] = useState(false);
   const pushToast = useToast();
-  const { setBalance, setTxns } = useApp();
+  const { setBalance, setTxns, setName } = useApp();
   const presets = [500, 1000, 2500, 5000, 10000];
+
+  // Inline name prompt state — shown when user has no name saved
+  const [needsName, setNeedsName] = useState(false);
+  const [nameFirst, setNameFirst] = useState("");
+  const [nameLast, setNameLast]   = useState("");
+  const [nameError, setNameError] = useState("");
 
   useEffect(() => {
     const script = document.createElement("script");
@@ -23,11 +29,21 @@ function TopupSheet({ onClose, userEmail, profileFirstname, profileLastname }: {
     };
   }, []);
 
-  const handlePay = async () => {
+  const handlePay = async (overrideFirst?: string, overrideLast?: string) => {
     if (amt < 500) {
       pushToast({ kind: "bad", msg: "Minimum top-up amount is ₦500" });
       return;
     }
+
+    const firstname = (overrideFirst ?? profileFirstname ?? "").trim();
+    const lastname  = (overrideLast  ?? profileLastname  ?? "").trim();
+
+    // If no name saved yet, show the inline name prompt instead
+    if (!firstname) {
+      setNeedsName(true);
+      return;
+    }
+
     setLoading(true);
     try {
       // Get secure reference from server
@@ -58,10 +74,6 @@ function TopupSheet({ onClose, userEmail, profileFirstname, profileLastname }: {
         setLoading(false);
         return;
       }
-      // Use saved profile name; fall back to safe non-empty defaults
-      const firstname = (profileFirstname ?? "").trim() || "Smsvital";
-      const lastname  = (profileLastname  ?? "").trim() || "User";
-      console.log("[TransactPay] firstname:", JSON.stringify(firstname), "lastname:", JSON.stringify(lastname));
 
       const tpApiKey = process.env.NEXT_PUBLIC_TRANSACTPAY_PUBLIC_KEY;
       const tpEncKey = process.env.NEXT_PUBLIC_TRANSACTPAY_ENCRYPTION_KEY;
@@ -70,6 +82,8 @@ function TopupSheet({ onClose, userEmail, profileFirstname, profileLastname }: {
         setLoading(false);
         return;
       }
+
+      const finalLastname = lastname || firstname;
 
       // Shared verify handler used by both onCompleted and the poll interval
       const verifyPayment = async (ref: string): Promise<boolean> => {
@@ -121,7 +135,7 @@ function TopupSheet({ onClose, userEmail, profileFirstname, profileLastname }: {
         reference,
         email,
         firstname,
-        lastname,
+        lastname: finalLastname,
         mobile: "00000000000",
         country: "NG",
         description: "Smsvital wallet top-up",
@@ -160,48 +174,99 @@ function TopupSheet({ onClose, userEmail, profileFirstname, profileLastname }: {
     }
   };
 
+  const inputBox = { display: "flex", alignItems: "center", gap: 10, padding: "13px 14px", background: "var(--surface-2)", boxShadow: "inset 0 0 0 1px var(--line-2)", borderRadius: 12 } as const;
+  const inputStyle = { flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--txt)", fontSize: 15, fontFamily: "var(--sans)" } as const;
+
+  const handleSaveName = () => {
+    if (!nameFirst.trim()) { setNameError("First name is required."); return; }
+    setNameError("");
+    setName(nameFirst.trim(), nameLast.trim());
+    setNeedsName(false);
+    handlePay(nameFirst.trim(), nameLast.trim());
+  };
+
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(0,0,0,0.55)",
       animation: "fadeIn .2s ease", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
       <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: "var(--surface)", borderRadius: "24px 24px 0 0",
         padding: "10px 20px 34px", boxShadow: "0 -20px 60px rgba(0,0,0,0.6)", animation: "sheetUp .3s cubic-bezier(.2,.9,.3,1)" }}>
         <div style={{ width: 40, height: 4, borderRadius: 99, background: "var(--line-2)", margin: "4px auto 18px" }}/>
-        <div style={{ fontWeight: 700, fontSize: 19, marginBottom: 4 }}>Add funds</div>
-        <div style={{ fontSize: 12.5, color: "var(--txt-3)", marginBottom: 16 }}>Pay via TransactPay · cards, bank transfer, USSD</div>
-        <div className="mono" style={{ textAlign: "center", fontSize: 46, fontWeight: 700, margin: "8px 0 18px" }}>{fmt(amt)}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8, marginBottom: 18 }}>
-          {presets.map(p => (
-            <button key={p} onClick={() => setAmtStr(String(p))} className="btn" style={{ padding: "12px 0", borderRadius: 11, fontSize: 14, fontWeight: 700,
-              background: amt === p ? "var(--accent-soft)" : "var(--surface-2)",
-              color: amt === p ? "var(--accent-bright)" : "var(--txt-2)",
-              boxShadow: amt === p ? "inset 0 0 0 1.5px var(--accent-line)" : "inset 0 0 0 1px var(--line)" }}>
-              ₦{p.toLocaleString("en-NG")}
+
+        {needsName ? (
+          /* ── Name prompt ── */
+          <>
+            <div style={{ fontWeight: 700, fontSize: 19, marginBottom: 4 }}>One quick thing</div>
+            <div style={{ fontSize: 13, color: "var(--txt-3)", marginBottom: 24, lineHeight: 1.5 }}>
+              TransactPay requires your real name to process payments. You only need to do this once.
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                <label className="eyebrow">First name</label>
+                <div style={inputBox}>
+                  <Icon name="user" size={17} stroke="var(--txt-3)"/>
+                  <input type="text" value={nameFirst} onChange={e => setNameFirst(e.target.value)}
+                    placeholder="e.g. Emeka" autoComplete="given-name" autoFocus style={inputStyle}/>
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                <label className="eyebrow">Last name <span style={{ color: "var(--txt-3)", fontWeight: 400 }}>(optional)</span></label>
+                <div style={inputBox}>
+                  <Icon name="user" size={17} stroke="var(--txt-3)"/>
+                  <input type="text" value={nameLast} onChange={e => setNameLast(e.target.value)}
+                    placeholder="e.g. Obi" autoComplete="family-name" style={inputStyle}/>
+                </div>
+              </div>
+              {nameError && (
+                <div style={{ padding: "10px 14px", borderRadius: 10, background: "var(--bad-soft)", border: "1px solid rgba(251,111,132,0.3)", fontSize: 13.5, color: "var(--bad)" }}>
+                  {nameError}
+                </div>
+              )}
+              <button onClick={handleSaveName} className="btn btn-primary" style={{ width: "100%", padding: "15px", borderRadius: 13, fontSize: 16 }}>
+                <Icon name="lock" size={16}/>Save &amp; Pay {fmt(amt)}
+              </button>
+            </div>
+          </>
+        ) : (
+          /* ── Normal payment UI ── */
+          <>
+            <div style={{ fontWeight: 700, fontSize: 19, marginBottom: 4 }}>Add funds</div>
+            <div style={{ fontSize: 12.5, color: "var(--txt-3)", marginBottom: 16 }}>Pay via TransactPay · cards, bank transfer, USSD</div>
+            <div className="mono" style={{ textAlign: "center", fontSize: 46, fontWeight: 700, margin: "8px 0 18px" }}>{fmt(amt)}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8, marginBottom: 18 }}>
+              {presets.map(p => (
+                <button key={p} onClick={() => setAmtStr(String(p))} className="btn" style={{ padding: "12px 0", borderRadius: 11, fontSize: 14, fontWeight: 700,
+                  background: amt === p ? "var(--accent-soft)" : "var(--surface-2)",
+                  color: amt === p ? "var(--accent-bright)" : "var(--txt-2)",
+                  boxShadow: amt === p ? "inset 0 0 0 1.5px var(--accent-line)" : "inset 0 0 0 1px var(--line)" }}>
+                  ₦{p.toLocaleString("en-NG")}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "11px 14px",
+                background: "var(--surface-2)", boxShadow: "inset 0 0 0 1px var(--line-2)", borderRadius: 12 }}>
+                <span style={{ color: "var(--txt-3)", fontSize: 14, fontFamily: "var(--mono)" }}>₦</span>
+                <input
+                  type="number" min={1} step={100} value={amtStr}
+                  onChange={e => setAmtStr(e.target.value)}
+                  style={{ flex: 1, background: "transparent", border: "none", outline: "none",
+                    color: "var(--txt)", fontSize: 18, fontFamily: "var(--mono)", fontWeight: 700 }}
+                />
+              </div>
+            </div>
+            <button onClick={() => handlePay()} disabled={loading} className="btn btn-primary" style={{ width: "100%", padding: "15px", borderRadius: 13, fontSize: 16 }}>
+              {loading ? <><Icon name="refresh" size={16}/>Processing…</> : <><Icon name="lock" size={16}/>Pay {fmt(amt)} via TransactPay</>}
             </button>
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "11px 14px",
-            background: "var(--surface-2)", boxShadow: "inset 0 0 0 1px var(--line-2)", borderRadius: 12 }}>
-            <span style={{ color: "var(--txt-3)", fontSize: 14, fontFamily: "var(--mono)" }}>₦</span>
-            <input
-              type="number" min={1} step={100} value={amtStr}
-              onChange={e => setAmtStr(e.target.value)}
-              style={{ flex: 1, background: "transparent", border: "none", outline: "none",
-                color: "var(--txt)", fontSize: 18, fontFamily: "var(--mono)", fontWeight: 700 }}
-            />
-          </div>
-        </div>
-        <button onClick={handlePay} disabled={loading} className="btn btn-primary" style={{ width: "100%", padding: "15px", borderRadius: 13, fontSize: 16 }}>
-          {loading ? <><Icon name="refresh" size={16}/>Processing…</> : <><Icon name="lock" size={16}/>Pay {fmt(amt)} via TransactPay</>}
-        </button>
-        {amt < 500 && amt > 0 && (
-          <div style={{ fontSize: 12, color: "var(--bad)", textAlign: "center", marginTop: 6 }}>
-            Minimum top-up is ₦500
-          </div>
+            {amt < 500 && amt > 0 && (
+              <div style={{ fontSize: 12, color: "var(--bad)", textAlign: "center", marginTop: 6 }}>
+                Minimum top-up is ₦500
+              </div>
+            )}
+            <div style={{ fontSize: 11.5, color: "var(--txt-3)", textAlign: "center", marginTop: 6 }}>
+              Secured by TransactPay
+            </div>
+          </>
         )}
-        <div style={{ fontSize: 11.5, color: "var(--txt-3)", textAlign: "center", marginTop: 6 }}>
-          Secured by TransactPay
-        </div>
       </div>
     </div>
   );
