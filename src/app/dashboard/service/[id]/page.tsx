@@ -45,7 +45,11 @@ export default function ConfigScreen() {
   const price = entry?.price ?? priceFor(svc, cc);
   const realAvail = counts !== null ? (counts[cc?.smspvaCode ?? ""] ?? -1) : null;
   const canPay = balance >= price && realAvail !== 0;
-  const list = COUNTRIES.filter(c => c.name.toLowerCase().includes(q.toLowerCase()));
+  const list = COUNTRIES.filter(c => {
+    if (!c.name.toLowerCase().includes(q.toLowerCase())) return false;
+    const realCount = counts !== null ? (counts[c.smspvaCode] ?? -1) : null;
+    return realCount !== 0;
+  });
 
   const buy = async () => {
     if (!cc) return;

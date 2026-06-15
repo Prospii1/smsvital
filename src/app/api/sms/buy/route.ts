@@ -50,10 +50,13 @@ export async function POST(request: Request) {
     realPrice = expectedPrice;
   }
 
-  // Reject if client sent a significantly different price (prevents manipulation)
-  if (Math.abs(realPrice - expectedPrice) > PRICE_TOLERANCE) {
+  // Allow if the real price is cheaper, or has increased only slightly.
+  // Reject if the price has increased significantly (prevents manipulation or unexpected high charges).
+  const priceIncrease = realPrice - expectedPrice;
+  const maxAllowedIncrease = Math.max(150, expectedPrice * 0.1); // Allow up to 10% or 150 NGN
+  if (priceIncrease > maxAllowedIncrease) {
     return Response.json(
-      { error: "Price mismatch — please refresh and try again", statusCode: 409 },
+      { error: "Price changed — please try again", statusCode: 409 },
       { status: 409 }
     );
   }

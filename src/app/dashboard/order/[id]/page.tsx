@@ -57,14 +57,21 @@ export default function LiveOrderScreen() {
   const DEMO_ARRIVAL = 7;
 
   const [phase, setPhase] = useState(order?.status || "waiting");
-  const [secs, setSecs] = useState(0);
+  const [secs, setSecs] = useState(() => {
+    if (!order?.created_at) return 0;
+    const elapsed = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 1000);
+    return Math.max(0, elapsed);
+  });
   const [code, setCode] = useState<string | null>(order?.code || null);
   const [copied, setCopied] = useState(false);
 
   // Seconds ticker
   useEffect(() => {
     if (!order || phase === "received" || phase === "expired" || phase === "cancelled") return;
-    const t = setInterval(() => setSecs(s => s + 1), 1000);
+    const t = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - new Date(order.created_at || Date.now()).getTime()) / 1000);
+      setSecs(Math.max(0, elapsed));
+    }, 1000);
     return () => clearInterval(t);
   }, [order, phase]);
 
@@ -121,6 +128,7 @@ export default function LiveOrderScreen() {
         }
       })
       .catch(() => {});
+    router.push("/dashboard/orders");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secs]);
 

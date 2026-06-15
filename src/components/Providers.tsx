@@ -59,15 +59,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const [{ data: profile }, { data: ordersData }, { data: txnsData }] = await Promise.all([
       supabase.from("profiles").select("balance, firstname, lastname").eq("id", userId).maybeSingle(),
-      supabase.from("orders").select("data").eq("user_id", userId).order("created_at", { ascending: false }),
+      supabase.from("orders").select("data, created_at").eq("user_id", userId).order("created_at", { ascending: false }),
       supabase.from("transactions").select("data").eq("user_id", userId).order("created_at", { ascending: false }),
     ]);
 
     setBalanceState(profile?.balance ?? 0);
     setFirstname(profile?.firstname ?? "");
     setLastname(profile?.lastname ?? "");
-    setOrdersState(ordersData?.map((r: any) => r.data) ?? []);
+    setOrdersState(ordersData?.map((r: any) => ({ ...r.data, created_at: r.created_at })) ?? []);
     setTxnsState(txnsData?.map((r: any) => r.data) ?? []);
+
+    // Call cleanup route on load/login to auto-refund any expired waiting orders
+    fetch("/api/sms/cleanup", { method: "POST" })
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok && d.refundCount > 0) {
+          setBalanceState(d.newBalance);
+          Promise.all([
+            supabase.from("orders").select("data, created_at").eq("user_id", userId).order("created_at", { ascending: false }),
+            supabase.from("transactions").select("data").eq("user_id", userId).order("created_at", { ascending: false })
+          ]).then(([{ data: newOrders }, { data: newTxns }]) => {
+            setOrdersState(newOrders?.map((r: any) => ({ ...r.data, created_at: r.created_at })) ?? []);
+            setTxnsState(newTxns?.map((r: any) => r.data) ?? []);
+          });
+        }
+      })
+      .catch(() => {});
 
     // Tweaks are cosmetic — keep in localStorage per user
     try {
@@ -107,7 +124,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setBalanceState(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       if (userIdRef.current) {
-        supabase.from("profiles").upsert({ id: userIdRef.current, balance: next }).then(() => {});
+        supabase.from("profiles")
+          .update({ balance: next })
+          .eq("id", userIdRef.current)
+          .then(({ error }) => {
+            if (error) console.error("Failed to persist balance to DB:", error);
+          });
       }
       return next;
     });

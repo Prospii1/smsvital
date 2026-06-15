@@ -64,7 +64,7 @@ export async function POST(request: Request) {
 
   const { tx_ref } = body;
 
-  // Verify with TransactPay
+  // ── Step 1: Verify with TransactPay ──────────────────────────────────────
   let encrypted: string;
   try {
     encrypted = encryptPayload({ reference: tx_ref }, encryptionKey);
@@ -75,38 +75,32 @@ export async function POST(request: Request) {
 
   const res = await fetch("https://payment-api-service.transactpay.ai/payment/order/status", {
     method: "POST",
-    headers: {
-      "api-key": publicKey,
-      "content-type": "application/json",
-    },
+    headers: { "api-key": publicKey, "content-type": "application/json" },
     body: JSON.stringify({ data: encrypted }),
   });
 
-  const data = await res.json();
+  const tpData = await res.json();
 
   if (!res.ok) {
-    console.error("TransactPay status check failed:", res.status, JSON.stringify(data));
+    console.error("TransactPay status check failed:", res.status, JSON.stringify(tpData));
     return Response.json({ error: "Verification failed" }, { status: 402 });
   }
 
-  // TransactPay response shape:
-  // { status, data: { orderSummary: { status, totalChargedAmount, currencyId, ... } } }
-  const topStatus = (data?.status ?? "").toLowerCase();
-  const summary = data?.data?.orderSummary ?? data?.data ?? data;
+  // TransactPay response: { status, data: { orderSummary: { status, totalChargedAmount, ... } } }
+  const topStatus = (tpData?.status ?? "").toLowerCase();
+  const summary = tpData?.data?.orderSummary ?? tpData?.data ?? tpData;
   const txStatus = topStatus || (summary?.status ?? "").toLowerCase();
 
-  // Explicit success allowlist — only proceed on known-good statuses.
   if (!SUCCESS_STATUSES.includes(txStatus)) {
-    return Response.json({ error: "Payment not successful", status: data?.status ?? summary?.status }, { status: 402 });
+    return Response.json({ error: "Payment not successful", status: tpData?.status ?? summary?.status }, { status: 402 });
   }
 
-  // Amount — TransactPay returns totalChargedAmount on orderSummary
-  const amountNgn = Number(summary?.totalChargedAmount ?? summary?.amount ?? data?.amount);
+  const amountNgn = Number(summary?.totalChargedAmount ?? summary?.amount ?? tpData?.amount);
   if (!Number.isFinite(amountNgn) || amountNgn <= 0) {
-    return Response.json({ error: "Invalid amount" }, { status: 400 });
+    return Response.json({ error: "Invalid amount in payment response" }, { status: 400 });
   }
 
-  // Load the payment record created at initiate-time and validate it.
+  // ── Step 2: Load and validate our payment record ──────────────────────────
   const { data: payment } = await supabaseAdmin
     .from("payments")
     .select("reference, user_id, amount_expected, status")
@@ -123,49 +117,73 @@ export async function POST(request: Request) {
     return Response.json({ error: "Payment already credited" }, { status: 409 });
   }
 
-  // TransactPay adds its own fee on top (e.g. ₦500 becomes ₦520 charged).
-  // Validate that what was charged is >= what was expected (user paid at least the right amount).
-  // Allow up to 10% over (covers any gateway fee) but never under by more than ₦1.
   const expectedAmount = Number(payment.amount_expected);
+
+  // TransactPay charges a gateway fee on top — charged amount must be >= expected.
+  // A gap of up to ₦1 is allowed for floating-point rounding only.
   if (amountNgn < expectedAmount - 1) {
+    console.error(`Amount mismatch: charged=${amountNgn} expected=${expectedAmount} ref=${tx_ref}`);
     return Response.json({ error: "Amount mismatch" }, { status: 402 });
   }
 
-  // Atomically claim the payment: flip pending -> completed FIRST. If 0 rows
-  // are returned, another request already processed it -> 409 (no double-credit).
-  const { data: claimed } = await supabaseAdmin
+  // ── Step 3: Atomic claim — MUST happen before any balance credit ──────────
+  // Only one concurrent request can flip pending→completed. If 0 rows updated,
+  // another request already processed this payment — return 409 immediately.
+  const { data: claimed, error: claimError } = await supabaseAdmin
     .from("payments")
     .update({ status: "completed" })
     .eq("reference", tx_ref)
     .eq("status", "pending")
     .select("reference");
 
+  if (claimError) {
+    console.error("Failed to claim payment:", claimError);
+    return Response.json({ error: "Payment processing error" }, { status: 500 });
+  }
+
   if (!claimed || claimed.length === 0) {
+    // Another concurrent request already claimed and credited this payment.
     return Response.json({ error: "Payment already credited" }, { status: 409 });
   }
 
-  // Credit the user with what they intended to deposit (not the fee-inclusive charged amount).
+  // ── Step 4: Credit balance — only runs if we won the atomic claim ─────────
   const { data: newBalance, error: creditError } = await supabaseAdmin
     .rpc("credit_balance", { user_id: authUser.userId, amount: expectedAmount });
 
-  if (creditError) {
-    return Response.json({ error: "Failed to credit balance" }, { status: 500 });
+  if (creditError || newBalance === null || newBalance === undefined) {
+    // Credit failed after we already claimed the payment. Log for manual recovery.
+    console.error(`CRITICAL: payment claimed but credit failed. ref=${tx_ref} user=${authUser.userId} amount=${expectedAmount}`, creditError);
+    return Response.json({ error: "Failed to credit balance — contact support with ref: " + tx_ref }, { status: 500 });
   }
 
-  // Record transaction
+  // Re-fetch the actual balance from DB to guarantee accuracy — don't trust the RPC return value alone.
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("balance")
+    .eq("id", authUser.userId)
+    .maybeSingle();
+
+  const confirmedBalance = profile?.balance ?? newBalance;
+
+  // ── Step 5: Record transaction ────────────────────────────────────────────
   const txnId = `TXP-${tx_ref}`;
   const txnRecord = {
     id: txnId,
     t: "topup",
     label: "Wallet top-up",
     amt: expectedAmount,
-    ref: `TransactPay · ${summary?.paymentType ?? data?.paymentType ?? "card"}`,
+    ref: `TransactPay · ${summary?.paymentType ?? tpData?.paymentType ?? "card"}`,
     when: new Date().toLocaleString("en-NG"),
   };
 
-  await supabaseAdmin
+  const { error: txnError } = await supabaseAdmin
     .from("transactions")
     .insert({ id: txnRecord.id, user_id: authUser.userId, data: txnRecord, created_at: new Date().toISOString() });
 
-  return Response.json({ ok: true, newBalance, txn: txnRecord });
+  if (txnError) {
+    // Non-fatal: balance is already credited. Log it but don't fail the response.
+    console.error(`Transaction record failed (balance credited). ref=${tx_ref} user=${authUser.userId}`, txnError);
+  }
+
+  return Response.json({ ok: true, newBalance: confirmedBalance, txn: txnRecord });
 }
