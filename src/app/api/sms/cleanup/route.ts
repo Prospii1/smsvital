@@ -37,6 +37,30 @@ export async function POST() {
       const smspvaOrderId = order.data.smspvaOrderId;
 
       if (smspvaOrderId) {
+        // Double check if code came through from SMSPVA before refunding
+        try {
+          const checkRes = await fetch(`${SMSPVA_BASE}/activation/sms/${smspvaOrderId}`, {
+            headers: { apikey: apiKey },
+            cache: "no-store",
+          });
+          const checkRaw = await checkRes.json();
+          const checkData = checkRaw?.data ?? checkRaw;
+          if (checkData.sms || checkRaw.statusCode === 200) {
+            const smsCode = checkData.sms ?? checkData.text ?? checkData.message;
+            const match = String(smsCode ?? '').match(/\b\d{4,8}\b/);
+            const otp = match ? match[0] : String(smsCode ?? '');
+
+            await supabaseAdmin
+              .from("orders")
+              .update({ data: { ...order.data, status: "received", code: otp } })
+              .eq("id", order.id);
+
+            continue; // Skip refund!
+          }
+        } catch (e) {
+          console.error("SMSPVA check error during cleanup:", e);
+        }
+
         await fetch(`${SMSPVA_BASE}/activation/blocknumber/${smspvaOrderId}`, {
           method: "PUT",
           headers: { apikey: apiKey },

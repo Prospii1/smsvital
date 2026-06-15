@@ -24,6 +24,11 @@ export async function DELETE(
   if (!order) return Response.json({ error: "Order not found" }, { status: 404 });
   if (order.user_id !== authUser.userId) return Response.json({ error: "Forbidden" }, { status: 403 });
 
+  // Prevent double refunds
+  if (order.data?.status !== "waiting") {
+    return Response.json({ error: "Order already processed or not eligible for refund" }, { status: 400 });
+  }
+
   const smspvaOrderId = order.data?.smspvaOrderId;
   const price = order.data?.price ?? 0;
 

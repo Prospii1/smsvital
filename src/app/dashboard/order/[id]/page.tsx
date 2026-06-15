@@ -6,6 +6,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { Icon, Monogram, CountdownRing, useToast } from "@/components/ui/Primitives";
 import { useApp } from "@/components/Providers";
 import { svcById, ccById, genOtp } from "@/lib/data";
+import { createClient } from "@/lib/supabase";
 
 function OtpReveal({ code, style, copied, onCopy }: any) {
   const digits = code.split("");
@@ -48,22 +49,51 @@ export default function LiveOrderScreen() {
   const { orders, setOrders, setBalance, setTxns, tweaks } = useApp();
   const pushToast = useToast();
 
-  const order = orders.find((o: any) => o.id === id);
+  const [order, setOrder] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const orderFromStore = orders.find((o: any) => o.id === id);
+
+  useEffect(() => {
+    if (orderFromStore) {
+      setOrder(orderFromStore);
+      setLoading(false);
+      return;
+    }
+
+    const supabase = createClient();
+    supabase.from("orders")
+      .select("data, created_at")
+      .eq("id", id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setOrder({ ...data.data, created_at: data.created_at });
+        }
+        setLoading(false);
+      });
+  }, [id, orderFromStore]);
+
   const svc = order ? svcById(order.svc) : null;
   const cc = order ? ccById(order.cc) : null;
 
-  const isDemo = !order?.smspvaOrderId;
+  const isDemo = order ? !order.smspvaOrderId : false;
   const TOTAL = order?.expires ?? 600;
   const DEMO_ARRIVAL = 7;
 
-  const [phase, setPhase] = useState(order?.status || "waiting");
-  const [secs, setSecs] = useState(() => {
-    if (!order?.created_at) return 0;
-    const elapsed = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 1000);
-    return Math.max(0, elapsed);
-  });
-  const [code, setCode] = useState<string | null>(order?.code || null);
+  const [phase, setPhase] = useState("waiting");
+  const [secs, setSecs] = useState(0);
+  const [code, setCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Sync state values when order loads/updates
+  useEffect(() => {
+    if (!order) return;
+    setPhase(order.status || "waiting");
+    setCode(order.code || null);
+    const elapsed = Math.floor((Date.now() - new Date(order.created_at || Date.now()).getTime()) / 1000);
+    setSecs(Math.max(0, elapsed));
+  }, [order]);
 
   // Seconds ticker
   useEffect(() => {
@@ -131,6 +161,14 @@ export default function LiveOrderScreen() {
     router.push("/dashboard/orders");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secs]);
+
+  if (loading) {
+    return (
+      <div className="screen-in" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
+        <Icon name="refresh" className="spin" size={28} />
+      </div>
+    );
+  }
 
   if (!order || !svc || !cc) return <div style={{ padding: 20 }}>Order not found</div>;
 

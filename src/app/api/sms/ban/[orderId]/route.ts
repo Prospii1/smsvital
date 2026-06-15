@@ -24,10 +24,39 @@ export async function DELETE(
   if (!order) return Response.json({ error: "Order not found" }, { status: 404 });
   if (order.user_id !== authUser.userId) return Response.json({ error: "Forbidden" }, { status: 403 });
 
+  // Prevent double refunds
+  if (order.data?.status !== "waiting") {
+    return Response.json({ error: "Order already processed or not eligible for refund" }, { status: 400 });
+  }
+
   const smspvaOrderId = order.data?.smspvaOrderId;
   const price = order.data?.price ?? 0;
 
+  // Double check if code came through from SMSPVA before refunding
   if (smspvaOrderId) {
+    try {
+      const checkRes = await fetch(`${SMSPVA_BASE}/activation/sms/${smspvaOrderId}`, {
+        headers: { apikey: apiKey },
+        cache: "no-store",
+      });
+      const checkRaw = await checkRes.json();
+      const checkData = checkRaw?.data ?? checkRaw;
+      if (checkData.sms || checkRaw.statusCode === 200) {
+        const smsCode = checkData.sms ?? checkData.text ?? checkData.message;
+        const match = String(smsCode ?? '').match(/\b\d{4,8}\b/);
+        const otp = match ? match[0] : String(smsCode ?? '');
+
+        await supabaseAdmin
+          .from("orders")
+          .update({ data: { ...order.data, status: "received", code: otp } })
+          .eq("id", orderId);
+
+        return Response.json({ ok: true, status: "received", code: otp });
+      }
+    } catch (e) {
+      console.error("SMSPVA check error:", e);
+    }
+
     await fetch(`${SMSPVA_BASE}/activation/blocknumber/${smspvaOrderId}`, {
       method: "PUT",
       headers: { apikey: apiKey },

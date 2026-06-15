@@ -12,7 +12,7 @@ export const fmt = (n: number) => {
 export const fmtBig = (n: number) => n.toLocaleString("en-US");
 
 /* ---------- icon set (simple line glyphs) ---------- */
-export function Icon({ name, size = 20, stroke = "currentColor", sw = 1.7, style }: { name: string, size?: number, stroke?: string, sw?: number, style?: React.CSSProperties }) {
+export function Icon({ name, size = 20, stroke = "currentColor", sw = 1.7, style, className }: { name: string, size?: number, stroke?: string, sw?: number, style?: React.CSSProperties, className?: string }) {
   const p = { fill: "none", stroke, strokeWidth: sw, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   const paths: Record<string, React.ReactNode> = {
     search:  <><circle cx="11" cy="11" r="7" {...p}/><path d="M21 21l-4-4" {...p}/></>,
@@ -44,7 +44,7 @@ export function Icon({ name, size = 20, stroke = "currentColor", sw = 1.7, style
     phone:   <><rect x="6" y="2.5" width="12" height="19" rx="3" {...p}/><path d="M10 18.5h4" {...p}/></>,
   };
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" style={style}>{paths[name]}</svg>
+    <svg width={size} height={size} viewBox="0 0 24 24" style={style} className={className}>{paths[name]}</svg>
   );
 }
 
