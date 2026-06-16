@@ -147,8 +147,10 @@ export async function POST(request: Request) {
   }
 
   // ── Step 4: Credit balance — only runs if we won the atomic claim ─────────
+  // reason: 'deposit' marks this as real money in, so it counts toward
+  // lifetime_deposited (the cap that balance can never exceed).
   const { data: newBalance, error: creditError } = await supabaseAdmin
-    .rpc("credit_balance", { user_id: authUser.userId, amount: expectedAmount });
+    .rpc("credit_balance", { user_id: authUser.userId, amount: expectedAmount, reason: "deposit" });
 
   if (creditError || newBalance === null || newBalance === undefined) {
     // Credit failed after we already claimed the payment. Log for manual recovery.

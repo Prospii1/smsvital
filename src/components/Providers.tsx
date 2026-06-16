@@ -134,20 +134,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     document.body.classList.toggle("no-grid", !tweaks.scanlines);
   }, [tweaks.scanlines]);
 
+  // Balance is persisted server-side only — via the credit_balance/deduct_balance
+  // RPCs called from API routes using the service_role client. A direct client
+  // write here would now be rejected by a DB trigger anyway (see
+  // supabase/migrations/20260616_lock_balance.sql), so this only ever mirrors
+  // the balance the server already returned into local state.
   const setBalance = useCallback((updater: any) => {
-    setBalanceState(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      if (userIdRef.current) {
-        supabase.from("profiles")
-          .update({ balance: next })
-          .eq("id", userIdRef.current)
-          .then(({ error }) => {
-            if (error) console.error("Failed to persist balance to DB:", error);
-          });
-      }
-      return next;
-    });
-  }, [supabase]);
+    setBalanceState(prev => (typeof updater === "function" ? updater(prev) : updater));
+  }, []);
 
   const setOrders = useCallback((updater: any) => {
     setOrdersState(prev => {
