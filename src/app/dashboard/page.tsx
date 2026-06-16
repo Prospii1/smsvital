@@ -232,7 +232,7 @@ export default function HomeScreen() {
                         <div style={{ fontWeight: 600, fontSize: 13 }}>{svc.name} · {cc.name}</div>
                         <div className="mono" style={{ fontSize: 10.5, color: "var(--txt-3)", marginTop: 1 }}>{o.number}</div>
                       </div>
-                      <Badge kind={o.status}/>
+                      {o.status === "expired" ? <Badge kind={o.status}>Code not received</Badge> : <Badge kind={o.status}/>}
                     </button>
                   );
                 })}

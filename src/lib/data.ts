@@ -94,3 +94,20 @@ export const svcById = (id: string, customList?: any[]) => {
   return list.find(s => s.id === id || s.smspvaCode === id);
 };
 export const ccById  = (id: string) => COUNTRIES.find(c => c.id === id || c.smspvaCode === id);
+
+// Relative time computed live from a real timestamp — order.age used to be a
+// string frozen at purchase time ("just now"), which never updated. This
+// recomputes it on every render from created_at instead.
+export function timeAgo(createdAt: string | number | Date | undefined): string {
+  if (!createdAt) return "";
+  const then = new Date(createdAt).getTime();
+  if (Number.isNaN(then)) return "";
+  const secs = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (secs < 60) return "just now";
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}

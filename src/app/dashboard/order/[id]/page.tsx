@@ -270,12 +270,14 @@ export default function LiveOrderScreen() {
           label={
             phase === "waiting"
               ? <><span className="mono" style={{ fontSize: 30, fontWeight: 700, letterSpacing: "0.02em" }}>{mm}:{ss}</span></>
-              : <Icon name="check" size={46} stroke="var(--ok)" sw={2.4}/>
+              : phase === "received"
+                ? <Icon name="check" size={46} stroke="var(--ok)" sw={2.4}/>
+                : <Icon name="x" size={46} stroke="var(--txt-3)" sw={2.4}/>
           }
           sub={
             <span className="mono" style={{ fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase",
               color: phase === "received" ? "var(--ok)" : "var(--txt-3)", marginTop: 6 }}>
-              {phase === "waiting" ? "awaiting sms" : "code received"}
+              {phase === "waiting" ? "awaiting sms" : phase === "received" ? "code received" : "code not received"}
             </span>
           }/>
 
@@ -315,10 +317,15 @@ export default function LiveOrderScreen() {
               </button>
             </>
           ) : phase === "expired" ? (
-            <button onClick={() => router.push("/dashboard/orders")} className="btn btn-ghost"
-              style={{ width: "100%", padding: "13px", borderRadius: 13, fontSize: 14 }}>
-              Back to orders
-            </button>
+            <>
+              <div style={{ textAlign: "center", color: "var(--txt-3)", fontSize: 12.5, marginBottom: 4 }}>
+                No code arrived in time — you&apos;ve been refunded
+              </div>
+              <button onClick={() => router.push("/dashboard/orders")} className="btn btn-ghost"
+                style={{ width: "100%", padding: "13px", borderRadius: 13, fontSize: 14 }}>
+                Back to orders
+              </button>
+            </>
           ) : (
             <>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, color: "var(--txt-3)", fontSize: 12.5 }}>

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { Monogram, Badge } from "@/components/ui/Primitives";
 import { useApp } from "@/components/Providers";
-import { svcById, ccById } from "@/lib/data";
+import { svcById, ccById, timeAgo } from "@/lib/data";
 
 export default function OrdersScreen() {
   const { orders, services } = useApp();
@@ -43,8 +43,10 @@ export default function OrdersScreen() {
                 <div style={{ textAlign:"right", display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
                   {o.status==="received"
                     ? <span className="mono" style={{ fontSize:15, fontWeight:700, color:"var(--ok)", letterSpacing:"0.05em" }}>{o.code}</span>
-                    : <Badge kind={o.status}/>}
-                  <span style={{ fontSize:10.5, color:"var(--txt-3)" }}>{o.age}</span>
+                    : o.status==="expired"
+                      ? <Badge kind={o.status}>Code not received</Badge>
+                      : <Badge kind={o.status}/>}
+                  <span style={{ fontSize:10.5, color:"var(--txt-3)" }}>{timeAgo(o.created_at) || o.age}</span>
                 </div>
               </button>
             );

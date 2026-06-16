@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Icon, fmt, Badge } from "@/components/ui/Primitives";
-import { svcById, ccById } from "@/lib/data";
+import { svcById, ccById, timeAgo } from "@/lib/data";
 
 const FILTERS = [["all","All"],["waiting","Waiting"],["received","Received"],["expired","Expired"],["cancelled","Cancelled"]] as const;
 
@@ -91,7 +91,7 @@ export default function AdminOrders() {
                   <td style={{ padding: "12px 16px", fontFamily: "var(--mono)", fontWeight: 700, color: "var(--ok)", letterSpacing: "0.06em" }}>{o.code ?? "—"}</td>
                   <td style={{ padding: "12px 16px", fontFamily: "var(--mono)", fontWeight: 600 }}>{fmt(o.price)}</td>
                   <td style={{ padding: "12px 16px" }}><Badge kind={o.status}/></td>
-                  <td style={{ padding: "12px 16px", color: "var(--txt-3)", fontSize: 12 }}>{o.age}</td>
+                  <td style={{ padding: "12px 16px", color: "var(--txt-3)", fontSize: 12 }}>{timeAgo(o.created_at)}</td>
                 </tr>
               );
             })}
