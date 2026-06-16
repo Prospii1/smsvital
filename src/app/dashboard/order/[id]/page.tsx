@@ -84,8 +84,12 @@ export default function LiveOrderScreen() {
     return () => { cancelled = true; };
   }, [id, orderFromStore]);
 
-  const svc = order ? svcById(order.svc, services) : null;
-  const cc = order ? ccById(order.cc) : null;
+  // Fall back to a placeholder if the catalog hasn't resolved this code yet
+  // (e.g. Providers' live-catalog fetch is still in flight) — the order itself
+  // is valid, so we still show the number/countdown rather than "Order not
+  // found"; the real name/icon appears moments later once services updates.
+  const svc = order ? (svcById(order.svc, services) ?? { name: order.svc, c: "var(--txt-3)", logoUrl: undefined }) : null;
+  const cc = order ? (ccById(order.cc) ?? { name: String(order.cc ?? "").toUpperCase(), id: order.cc }) : null;
 
   const isDemo = order ? !order.smspvaOrderId : false;
   const TOTAL = order?.expires ?? 600;
@@ -200,7 +204,9 @@ export default function LiveOrderScreen() {
     );
   }
 
-  if (!order || !svc || !cc) return <div style={{ padding: 20 }}>Order not found</div>;
+  // svc/cc always resolve to at least a placeholder once order is set (see above),
+  // so reaching here with no order means it genuinely doesn't exist or isn't ours.
+  if (!order) return <div style={{ padding: 20 }}>Order not found</div>;
 
   const remaining = Math.max(0, TOTAL - secs);
   const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
@@ -255,7 +261,7 @@ export default function LiveOrderScreen() {
           <Monogram svc={svc} size={40}/>
           <div>
             <div style={{ fontWeight: 700, fontSize: 16 }}>{svc.name}</div>
-            <div style={{ fontSize: 12, color: "var(--txt-3)" }}>{cc.name} · {order.id}</div>
+            <div style={{ fontSize: 12, color: "var(--txt-3)" }}>{cc!.name} · {order.id}</div>
           </div>
         </div>
 

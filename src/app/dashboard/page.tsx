@@ -219,9 +219,8 @@ export default function HomeScreen() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                 {recentOrders.map((o: any) => {
-                  const svc = svcById(o.svc, services);
-                  const cc = ccById(o.cc);
-                  if (!svc || !cc) return null;
+                  const svc = svcById(o.svc, services) ?? { name: o.svc, c: "var(--txt-3)", logoUrl: undefined };
+                  const cc = ccById(o.cc) ?? { name: String(o.cc ?? "").toUpperCase(), id: o.cc };
                   return (
                     <button key={o.id} onClick={() => router.push(`/dashboard/order/${o.id}`)}
                       className="btn focusable" style={{
