@@ -52,6 +52,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [firstname, setFirstname] = useState("");
   const [lastname, setLastname] = useState("");
 
+  // Auto-refund any orders whose countdown has expired. Called immediately on
+  // login and then every 30s for as long as the app is open, so a stuck order
+  // gets swept even if the user isn't on that specific order's detail page.
+  const runCleanup = useCallback(() => {
+    const userId = userIdRef.current;
+    if (!userId) return;
+    fetch("/api/sms/cleanup", { method: "POST" })
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok && d.refundCount > 0) {
+          setBalanceState(d.newBalance);
+          Promise.all([
+            supabase.from("orders").select("data, created_at").eq("user_id", userId).order("created_at", { ascending: false }),
+            supabase.from("transactions").select("data").eq("user_id", userId).order("created_at", { ascending: false }),
+          ]).then(([{ data: newOrders }, { data: newTxns }]) => {
+            setOrdersState(newOrders?.map((r: any) => ({ ...r.data, created_at: r.created_at })) ?? []);
+            setTxnsState(newTxns?.map((r: any) => r.data) ?? []);
+          });
+        }
+      })
+      .catch(() => {});
+  }, [supabase]);
+
   const loadUserData = useCallback(async (userId: string, email: string, createdAt: string) => {
     userIdRef.current = userId;
     setUserEmail(email);
@@ -69,29 +92,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setOrdersState(ordersData?.map((r: any) => ({ ...r.data, created_at: r.created_at })) ?? []);
     setTxnsState(txnsData?.map((r: any) => r.data) ?? []);
 
-    // Call cleanup route on load/login to auto-refund any expired waiting orders
-    fetch("/api/sms/cleanup", { method: "POST" })
-      .then(r => r.json())
-      .then(d => {
-        if (d.ok && d.refundCount > 0) {
-          setBalanceState(d.newBalance);
-          Promise.all([
-            supabase.from("orders").select("data, created_at").eq("user_id", userId).order("created_at", { ascending: false }),
-            supabase.from("transactions").select("data").eq("user_id", userId).order("created_at", { ascending: false })
-          ]).then(([{ data: newOrders }, { data: newTxns }]) => {
-            setOrdersState(newOrders?.map((r: any) => ({ ...r.data, created_at: r.created_at })) ?? []);
-            setTxnsState(newTxns?.map((r: any) => r.data) ?? []);
-          });
-        }
-      })
-      .catch(() => {});
+    runCleanup();
 
     // Tweaks are cosmetic — keep in localStorage per user
     try {
       const saved = localStorage.getItem(`smsv_tweaks_${userId}`);
       if (saved) setTweaksState(JSON.parse(saved));
     } catch {}
-  }, [supabase]);
+  }, [supabase, runCleanup]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -115,6 +123,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, [supabase, loadUserData]);
+
+  // Re-run the same cleanup sweep every 30s for as long as the app is mounted.
+  useEffect(() => {
+    const interval = setInterval(runCleanup, 30_000);
+    return () => clearInterval(interval);
+  }, [runCleanup]);
 
   useEffect(() => {
     document.body.classList.toggle("no-grid", !tweaks.scanlines);

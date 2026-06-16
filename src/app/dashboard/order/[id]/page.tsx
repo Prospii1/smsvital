@@ -62,16 +62,26 @@ export default function LiveOrderScreen() {
     }
 
     const supabase = createClient();
-    supabase.from("orders")
-      .select("data, created_at")
-      .eq("id", id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          setOrder({ ...data.data, created_at: data.created_at });
-        }
+    let cancelled = false;
+
+    async function load(attempt = 0) {
+      const { data } = await supabase.from("orders").select("data, created_at").eq("id", id).maybeSingle();
+      if (cancelled) return;
+      if (data) {
+        setOrder({ ...data.data, created_at: data.created_at });
         setLoading(false);
-      });
+        return;
+      }
+      // Empty result can mean replication lag right after order creation — retry briefly before giving up.
+      if (attempt < 2) {
+        setTimeout(() => load(attempt + 1), 600 * (attempt + 1));
+        return;
+      }
+      setLoading(false);
+    }
+    load();
+
+    return () => { cancelled = true; };
   }, [id, orderFromStore]);
 
   const svc = order ? svcById(order.svc) : null;
@@ -117,14 +127,18 @@ export default function LiveOrderScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secs]);
 
-  // Real mode: poll SMSPVA every 4.5s
+  // Real mode: poll SMSPVA every 4.5s. The poll route also checks this order's
+  // own expiry server-side and refunds automatically — this is the primary
+  // timeout path (works the instant the countdown ends, doesn't depend on
+  // hitting an exact client-side second).
   useEffect(() => {
     if (isDemo || phase !== "waiting" || !order?.id) return;
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/sms/poll/${order.id}`);
-        if (res.status === 200) {
-          const data = await res.json();
+        const data = await res.json();
+
+        if (res.status === 200 && data.sms) {
           const match = String(data.sms ?? '').match(/\b\d{4,8}\b/);
           const otp = match ? match[0] : String(data.sms ?? '');
           clearInterval(interval);
@@ -133,6 +147,19 @@ export default function LiveOrderScreen() {
           setOrders((os: any[]) => os.map(o => o.id === id ? { ...o, status: "received", code: otp } : o));
           pushToast({ kind: "ok", icon: "sms", msg: `Code received — ${otp}` });
           if (navigator.vibrate) navigator.vibrate(40);
+          return;
+        }
+
+        if (data.expired) {
+          clearInterval(interval);
+          setPhase("expired");
+          setOrders((os: any[]) => os.map(o => o.id === id ? { ...o, status: "expired" } : o));
+          if (data.newBalance !== undefined) {
+            setBalance(data.newBalance);
+            setTxns((ts: any[]) => [data.txn, ...ts]);
+          }
+          pushToast({ kind: "bad", msg: "Order timed out — refunded automatically" });
+          router.push("/dashboard/orders");
         }
         // 202 = still waiting
       } catch {
@@ -143,9 +170,12 @@ export default function LiveOrderScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order?.id, phase, isDemo]);
 
-  // Real mode: auto-ban number at 580s if no SMS received
+  // Fallback safety net: if for some reason the poll above never fired the
+  // expiry branch (e.g. poll requests were failing), force a ban+refund once
+  // we're well past the window. The poll route is idempotent so this is safe
+  // even if it races with the server-side check.
   useEffect(() => {
-    if (isDemo || phase !== "waiting" || secs < 580 || !order?.id) return;
+    if (isDemo || phase !== "waiting" || secs < (TOTAL + 15) || !order?.id) return;
     setPhase("expired");
     setOrders((os: any[]) => os.map(o => o.id === id ? { ...o, status: "expired" } : o));
     pushToast({ kind: "bad", msg: "Order timed out — number banned, refunding…" });
