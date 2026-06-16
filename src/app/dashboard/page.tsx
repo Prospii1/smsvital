@@ -219,7 +219,7 @@ export default function HomeScreen() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                 {recentOrders.map((o: any) => {
-                  const svc = svcById(o.svc);
+                  const svc = svcById(o.svc, services);
                   const cc = ccById(o.cc);
                   if (!svc || !cc) return null;
                   return (

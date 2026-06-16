@@ -8,7 +8,7 @@ import { useApp } from "@/components/Providers";
 import { svcById, ccById } from "@/lib/data";
 
 export default function OrdersScreen() {
-  const { orders } = useApp();
+  const { orders, services } = useApp();
   const router = useRouter();
   const [filter, setFilter] = useState("all");
   const shown = orders.filter((o: any) => filter==="all" || (filter==="active"&&o.status==="waiting") || (filter==="done"&&o.status!=="waiting"));
@@ -26,7 +26,7 @@ export default function OrdersScreen() {
       <div style={{ padding:"0 18px 18px" }}>
         <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
           {shown.map((o: any) => {
-            const svc = svcById(o.svc);
+            const svc = svcById(o.svc, services);
             const cc = ccById(o.cc);
             if (!svc || !cc) return null;
             return (

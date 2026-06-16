@@ -46,7 +46,7 @@ function OtpReveal({ code, style, copied, onCopy }: any) {
 export default function LiveOrderScreen() {
   const { id } = useParams();
   const router = useRouter();
-  const { orders, setOrders, setBalance, setTxns, tweaks } = useApp();
+  const { orders, setOrders, setBalance, setTxns, tweaks, services } = useApp();
   const pushToast = useToast();
 
   const [order, setOrder] = useState<any>(null);
@@ -84,7 +84,7 @@ export default function LiveOrderScreen() {
     return () => { cancelled = true; };
   }, [id, orderFromStore]);
 
-  const svc = order ? svcById(order.svc) : null;
+  const svc = order ? svcById(order.svc, services) : null;
   const cc = order ? ccById(order.cc) : null;
 
   const isDemo = order ? !order.smspvaOrderId : false;
