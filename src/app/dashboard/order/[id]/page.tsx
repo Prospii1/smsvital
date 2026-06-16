@@ -286,7 +286,20 @@ export default function LiveOrderScreen() {
           <div onClick={() => { navigator.clipboard?.writeText(order.number); pushToast({ msg: "Number copied" }); }}
             className="card" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
             padding: "14px", borderRadius: 14, cursor: "pointer", background: "var(--surface-2)" }}>
-            <span className="mono" style={{ fontSize: 21, fontWeight: 600, letterSpacing: "0.03em" }}>{order.number}</span>
+            {(() => {
+              const dial = (cc as any)?.dial;
+              const rest = dial && order.number?.startsWith(dial) ? order.number.slice(dial.length).trim() : order.number;
+              return (
+                <>
+                  {dial && (
+                    <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-bright)",
+                      background: "var(--accent-soft)", padding: "4px 9px", borderRadius: 999,
+                      boxShadow: "inset 0 0 0 1px var(--accent-line)" }}>{dial}</span>
+                  )}
+                  <span className="mono" style={{ fontSize: 21, fontWeight: 600, letterSpacing: "0.03em" }}>{rest}</span>
+                </>
+              );
+            })()}
             <Icon name="copy" size={17} stroke="var(--txt-3)"/>
           </div>
         </div>
