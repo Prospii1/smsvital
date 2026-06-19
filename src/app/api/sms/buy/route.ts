@@ -2,6 +2,7 @@ import { getAuthenticatedUser } from "@/lib/admin-guard";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getMarkup, toNgn, fetchSmspvaPrice } from "@/lib/pricing";
 import { rateLimit } from "@/lib/rate-limit";
+import { COUNTRIES } from "@/lib/data";
 
 const SMSPVA_BASE = "https://api.smspva.com";
 const PRICE_TOLERANCE = 50; // NGN — allow ±50 to handle markup changes between catalog refresh and purchase
@@ -98,7 +99,12 @@ export async function POST(request: Request) {
   const txnId   = "TXN-" + orderId.slice(4);
   // Handle both field name variants across SMSPVA API versions
   const rawNum  = String(smspvaData.number ?? smspvaData.phoneNumber ?? "");
-  const number  = rawNum ? (rawNum.startsWith("+") ? rawNum : "+" + rawNum) : "";
+  const ccInfo  = COUNTRIES.find(c => c.smspvaCode === country || c.id === country.toLowerCase());
+  const dial    = ccInfo?.dial ?? "";
+  // If SMSPVA returns just local digits (no country prefix), prepend the dial code
+  const number  = rawNum
+    ? (rawNum.startsWith("+") ? rawNum : dial + rawNum)
+    : "";
   const smspvaOrderId = smspvaData.id ?? smspvaData.orderId ?? null;
   const now     = new Date().toISOString();
 
