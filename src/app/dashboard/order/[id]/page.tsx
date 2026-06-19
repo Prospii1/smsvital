@@ -289,6 +289,12 @@ export default function LiveOrderScreen() {
             padding: "14px", borderRadius: 14, cursor: "pointer", background: "var(--surface-2)" }}>
             {(() => {
               const dial = (cc as any)?.dial;
+              const dialDigits = dial ? dial.replace("+", "") : "";
+              const digitsOnly = (order.number ?? "").replace(/\D/g, "");
+              // Strip the country prefix (whatever SMSPVA stored) and show only local digits
+              const localNum = dialDigits && digitsOnly.startsWith(dialDigits)
+                ? digitsOnly.slice(dialDigits.length)
+                : digitsOnly || (order.number ?? "");
               return (
                 <>
                   {dial && (
@@ -296,7 +302,7 @@ export default function LiveOrderScreen() {
                       background: "var(--accent-soft)", padding: "4px 9px", borderRadius: 999,
                       boxShadow: "inset 0 0 0 1px var(--accent-line)" }}>{dial}</span>
                   )}
-                  <span className="mono" style={{ fontSize: 21, fontWeight: 600, letterSpacing: "0.03em" }}>{order.number ?? ""}</span>
+                  <span className="mono" style={{ fontSize: 21, fontWeight: 600, letterSpacing: "0.03em" }}>{localNum}</span>
                 </>
               );
             })()}
