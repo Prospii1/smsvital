@@ -93,7 +93,7 @@ export const svcById = (id: string, customList?: any[]) => {
   const list = customList && customList.length > 0 ? customList : SERVICES;
   return list.find(s => s.id === id || s.smspvaCode === id);
 };
-export const ccById  = (id: string) => COUNTRIES.find(c => c.id === id || c.smspvaCode === id);
+export const ccById  = (id: string) => COUNTRIES.find(c => c.id === id || c.smspvaCode === id || c.smspvaCode.toLowerCase() === id.toLowerCase());
 
 // Relative time computed live from a real timestamp — order.age used to be a
 // string frozen at purchase time ("just now"), which never updated. This
