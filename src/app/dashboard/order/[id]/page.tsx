@@ -9,7 +9,8 @@ import { svcById, ccById, genOtp } from "@/lib/data";
 import { createClient } from "@/lib/supabase";
 
 function OtpReveal({ code, style, copied, onCopy }: any) {
-  const digits = code.split("");
+  const codeStr = typeof code === "string" ? code : String(code ?? "");
+  const digits = codeStr.split("");
   const [shown, setShown] = useState(style === "type" ? 0 : digits.length);
   useEffect(() => {
     if (style !== "type") return;
@@ -288,7 +289,11 @@ export default function LiveOrderScreen() {
             padding: "14px", borderRadius: 14, cursor: "pointer", background: "var(--surface-2)" }}>
             {(() => {
               const dial = (cc as any)?.dial;
-              const rest = dial && order.number?.startsWith(dial) ? order.number.slice(dial.length).trim() : order.number;
+              const rawNum = (order.number ?? "").replace(/\s+/g, "");
+              const dialCompact = (dial ?? "").replace(/\s+/g, "");
+              const localNum = dial && rawNum.startsWith(dialCompact)
+                ? rawNum.slice(dialCompact.length)
+                : order.number ?? "";
               return (
                 <>
                   {dial && (
@@ -296,7 +301,7 @@ export default function LiveOrderScreen() {
                       background: "var(--accent-soft)", padding: "4px 9px", borderRadius: 999,
                       boxShadow: "inset 0 0 0 1px var(--accent-line)" }}>{dial}</span>
                   )}
-                  <span className="mono" style={{ fontSize: 21, fontWeight: 600, letterSpacing: "0.03em" }}>{rest}</span>
+                  <span className="mono" style={{ fontSize: 21, fontWeight: 600, letterSpacing: "0.03em" }}>{localNum}</span>
                 </>
               );
             })()}

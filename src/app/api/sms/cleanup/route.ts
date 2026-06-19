@@ -46,9 +46,10 @@ export async function POST() {
           const checkRaw = await checkRes.json();
           const checkData = checkRaw?.data ?? checkRaw;
           if (checkData.sms || checkRaw.statusCode === 200) {
-            const smsCode = checkData.sms ?? checkData.text ?? checkData.message;
-            const match = String(smsCode ?? '').match(/\b\d{4,8}\b/);
-            const otp = match ? match[0] : String(smsCode ?? '');
+            const rawCode = checkData.sms ?? checkData.text ?? checkData.message;
+            const smsStr = typeof rawCode === "string" ? rawCode : (rawCode?.text ?? rawCode?.code ?? rawCode?.message ?? JSON.stringify(rawCode) ?? "");
+            const match = smsStr.match(/\b\d{4,8}\b/);
+            const otp = match ? match[0] : smsStr;
 
             await supabaseAdmin
               .from("orders")

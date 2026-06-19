@@ -38,11 +38,16 @@ export async function GET(
     });
 
     const raw = await res.json();
+    console.log("SMSPVA poll raw response:", JSON.stringify(raw));
     // SMSPVA wraps response in `data` field
     const data = raw?.data ?? raw;
 
     if (data.sms || raw.statusCode === 200) {
-      const sms = data.sms ?? data.text ?? data.message;
+      const rawSms = data.sms ?? data.text ?? data.message;
+      // rawSms may be an object — flatten to string, then extract the OTP digits
+      const smsStr = typeof rawSms === "string" ? rawSms : (rawSms?.text ?? rawSms?.code ?? rawSms?.message ?? JSON.stringify(rawSms) ?? "");
+      const match = smsStr.match(/\b\d{4,8}\b/);
+      const sms = match ? match[0] : smsStr;
       await supabaseAdmin
         .from("orders")
         .update({ data: { ...order.data, status: "received", code: sms } })
