@@ -98,13 +98,19 @@ export async function POST(request: Request) {
   const orderId = "ORD-" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase();
   const txnId   = "TXN-" + orderId.slice(4);
   // Handle both field name variants across SMSPVA API versions
-  const rawNum  = String(smspvaData.number ?? smspvaData.phoneNumber ?? "");
-  const ccInfo  = COUNTRIES.find(c => c.smspvaCode === country || c.id === country.toLowerCase());
-  const dial    = ccInfo?.dial ?? "";
-  // If SMSPVA returns just local digits (no country prefix), prepend the dial code
-  const number  = rawNum
-    ? (rawNum.startsWith("+") ? rawNum : dial + rawNum)
-    : "";
+  const rawNum     = String(smspvaData.number ?? smspvaData.phoneNumber ?? "");
+  const ccInfo     = COUNTRIES.find(c => c.smspvaCode === country || c.id === country.toLowerCase());
+  const dial       = ccInfo?.dial ?? "";
+  const dialDigits = dial.replace("+", ""); // e.g. "44" for UK
+  // Strip to digits only, then remove the dial prefix if SMSPVA already included it,
+  // and rebuild cleanly — handles +7XXXXXXX (wrong prefix), XXXXXXX (no prefix),
+  // +44XXXXXXX (correct prefix), 44XXXXXXX (correct prefix without +).
+  const digitsOnly  = rawNum.replace(/\D/g, "");
+  const localDigits = dialDigits && digitsOnly.startsWith(dialDigits)
+    ? digitsOnly.slice(dialDigits.length)
+    : digitsOnly;
+  const number = dial && localDigits ? dial + localDigits : (rawNum ? "+" + digitsOnly : "");
+  console.log("SMSPVA number normalized:", { rawNum, dial, localDigits, number });
   const smspvaOrderId = smspvaData.id ?? smspvaData.orderId ?? null;
   const now     = new Date().toISOString();
 
