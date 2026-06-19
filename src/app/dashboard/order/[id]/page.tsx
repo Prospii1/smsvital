@@ -288,20 +288,21 @@ export default function LiveOrderScreen() {
             className="card" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
             padding: "14px", borderRadius: 14, cursor: "pointer", background: "var(--surface-2)" }}>
             {(() => {
-              const dial = (cc as any)?.dial;
-              const dialDigits = dial ? dial.replace("+", "") : "";
+              // Look up dial directly from order.cc — bypasses the cc fallback object which has no dial field
+              const resolvedCc = order?.cc ? ccById(order.cc) : null;
+              const dial = resolvedCc?.dial ?? (cc as any)?.dial ?? "";
+              const dialDigits = dial.replace("+", "");
               const digitsOnly = (order.number ?? "").replace(/\D/g, "");
-              // Strip the country prefix (whatever SMSPVA stored) and show only local digits
               const localNum = dialDigits && digitsOnly.startsWith(dialDigits)
                 ? digitsOnly.slice(dialDigits.length)
                 : digitsOnly || (order.number ?? "");
               return (
                 <>
-                  {dial && (
+                  {dial ? (
                     <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-bright)",
                       background: "var(--accent-soft)", padding: "4px 9px", borderRadius: 999,
                       boxShadow: "inset 0 0 0 1px var(--accent-line)" }}>{dial}</span>
-                  )}
+                  ) : null}
                   <span className="mono" style={{ fontSize: 21, fontWeight: 600, letterSpacing: "0.03em" }}>{localNum}</span>
                 </>
               );
