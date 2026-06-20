@@ -7,7 +7,7 @@ export async function GET() {
 
   const { data: rows, error } = await supabaseAdmin
     .from("orders")
-    .select("data, created_at")
+    .select("id, user_id, data, created_at")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -15,13 +15,15 @@ export async function GET() {
   }
 
   const orders = (rows ?? []).map((r: any) => ({
-    id: r.data?.id || `ORD-${r.created_at}`,
+    id: r.data?.id || r.id,
+    user_id: r.user_id || null,
     svc: r.data?.svc || "unknown",
     cc: r.data?.cc || "unknown",
     number: r.data?.number || "unknown",
     code: r.data?.code || null,
     price: r.data?.price || 0,
     status: r.data?.status || "unknown",
+    expires: r.data?.expires ?? 600,
     smspvaOrderId: r.data?.smspvaOrderId || null,
     created_at: r.created_at,
   }));
