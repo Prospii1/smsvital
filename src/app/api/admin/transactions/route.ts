@@ -5,10 +5,15 @@ export async function GET() {
   const auth = await requireAdmin();
   if (auth instanceof Response) return auth;
 
-  const { data: rows, error } = await supabaseAdmin
-    .from("transactions")
-    .select("data, created_at")
-    .order("created_at", { ascending: false });
+  const [{ data: rows, error }, { data: profiles }] = await Promise.all([
+    supabaseAdmin
+      .from("transactions")
+      .select("data, created_at")
+      .order("created_at", { ascending: false }),
+    supabaseAdmin
+      .from("profiles")
+      .select("balance"),
+  ]);
 
   if (error) {
     return Response.json({ error: error.message }, { status: 500 });
@@ -27,5 +32,8 @@ export async function GET() {
     };
   });
 
-  return Response.json(txns);
+  // Net balance = sum of all user wallet balances right now
+  const netBalance = (profiles ?? []).reduce((s: number, p: any) => s + Number(p.balance ?? 0), 0);
+
+  return Response.json({ txns, netBalance });
 }

@@ -12,10 +12,14 @@ export default function AdminWallet() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
+  const [netBalance, setNetBalance] = useState<number>(0);
+
   useEffect(() => {
     fetch("/api/admin/transactions")
       .then(r => r.json())
-      .then(d => { if (Array.isArray(d)) setTxns(d); })
+      .then(d => {
+        if (Array.isArray(d.txns)) { setTxns(d.txns); setNetBalance(d.netBalance ?? 0); }
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -31,23 +35,23 @@ export default function AdminWallet() {
     return true;
   });
 
-  const totalIn  = txns.filter((t: any) => t.amt > 0).reduce((s: number, t: any) => s + t.amt, 0);
-  const totalOut = txns.filter((t: any) => t.amt < 0).reduce((s: number, t: any) => s + Math.abs(t.amt), 0);
+  const totalIn  = txns.filter((t: any) => t.t === "topup").reduce((s: number, t: any) => s + Math.abs(t.amt), 0);
+  const totalOut = txns.filter((t: any) => t.t === "purchase").reduce((s: number, t: any) => s + Math.abs(t.amt), 0);
 
   return (
     <div style={{ padding: "28px 32px" }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em" }}>Transactions</h1>
         <p style={{ margin: "4px 0 0", color: "var(--txt-3)", fontSize: 14 }}>
-          {loading ? "Loading…" : `${txns.length} records · all time`}
+          {loading ? "Loading…" : `${txns.length} transactions · all time`}
         </p>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 24 }}>
         {[
-          { label: "Total funded",  value: loading ? "…" : fmt(totalIn),            color: "var(--ok)"           },
-          { label: "Total spent",   value: loading ? "…" : fmt(totalOut),            color: "var(--txt)"          },
-          { label: "Net balance",   value: loading ? "…" : fmt(totalIn - totalOut),  color: "var(--accent-bright)" },
+          { label: "Total funded",  value: loading ? "…" : fmt(totalIn),     color: "var(--ok)"            },
+          { label: "Total spent",   value: loading ? "…" : fmt(totalOut),    color: "var(--txt)"           },
+          { label: "Net balance",   value: loading ? "…" : fmt(netBalance),  color: "var(--accent-bright)" },
         ].map(s => (
           <div key={s.label} className="card" style={{ padding: "16px 18px", borderRadius: 14 }}>
             <div style={{ fontSize: 12, color: "var(--txt-3)", marginBottom: 6 }}>{s.label}</div>
