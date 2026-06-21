@@ -7,6 +7,7 @@ import { Icon, Monogram, CountdownRing, useToast } from "@/components/ui/Primiti
 import { useApp } from "@/components/Providers";
 import { svcById, ccById, genOtp } from "@/lib/data";
 import { createClient } from "@/lib/supabase";
+import { extractOtp } from "@/lib/extract-otp";
 
 function OtpReveal({ code, style, copied, onCopy }: any) {
   const codeStr = typeof code === "string" ? code : String(code ?? "");
@@ -144,8 +145,7 @@ export default function LiveOrderScreen() {
         const data = await res.json();
 
         if (res.status === 200 && data.sms) {
-          const match = String(data.sms ?? '').match(/\b\d{4,8}\b/);
-          const otp = match ? match[0] : String(data.sms ?? '');
+          const otp = extractOtp(data.sms);
           clearInterval(interval);
           setCode(otp);
           setPhase("received");

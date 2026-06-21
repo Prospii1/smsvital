@@ -1,5 +1,6 @@
 import { getAuthenticatedUser } from "@/lib/admin-guard";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { extractOtp } from "@/lib/extract-otp";
 
 const SMSPVA_BASE = "https://api.smspva.com";
 
@@ -46,10 +47,7 @@ export async function POST() {
           const checkRaw = await checkRes.json();
           const checkData = checkRaw?.data ?? checkRaw;
           if (checkData.sms || checkRaw.statusCode === 200) {
-            const rawCode = checkData.sms ?? checkData.text ?? checkData.message;
-            const smsStr = typeof rawCode === "string" ? rawCode : (rawCode?.text ?? rawCode?.code ?? rawCode?.message ?? JSON.stringify(rawCode) ?? "");
-            const match = smsStr.match(/\b\d{4,8}\b/);
-            const otp = match ? match[0] : smsStr;
+            const otp = extractOtp(checkData.sms ?? checkData.text ?? checkData.message);
 
             await supabaseAdmin
               .from("orders")
