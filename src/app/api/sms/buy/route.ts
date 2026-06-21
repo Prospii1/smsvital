@@ -1,11 +1,9 @@
 import { getAuthenticatedUser } from "@/lib/admin-guard";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { getMarkup, toNgn, fetchSmspvaPrice } from "@/lib/pricing";
 import { rateLimit } from "@/lib/rate-limit";
 import { COUNTRIES } from "@/lib/data";
 
 const SMSPVA_BASE = "https://api.smspva.com";
-const PRICE_TOLERANCE = 50; // NGN — allow ±50 to handle markup changes between catalog refresh and purchase
 
 export async function POST(request: Request) {
   const apiKey = process.env.SMSPVA_API_KEY;
@@ -35,32 +33,11 @@ export async function POST(request: Request) {
   if (!service || typeof service !== "string" || !/^opt\d+$/.test(service)) {
     return Response.json({ error: "Invalid service code" }, { status: 400 });
   }
-  if (typeof expectedPrice !== "number" || expectedPrice <= 0) {
+  if (typeof expectedPrice !== "number" || expectedPrice <= 0 || expectedPrice > 50_000) {
     return Response.json({ error: "Invalid price" }, { status: 400 });
   }
 
-  // Fetch real supplier price server-side and apply markup
-  const markup = await getMarkup();
-  const supplierUsd = await fetchSmspvaPrice(apiKey, service, country);
-
-  let realPrice: number;
-  if (supplierUsd !== null) {
-    realPrice = toNgn(supplierUsd, markup);
-  } else {
-    // Supplier price unavailable — trust catalog cache entry within tolerance
-    realPrice = expectedPrice;
-  }
-
-  // Allow if the real price is cheaper, or has increased only slightly.
-  // Reject if the price has increased significantly (prevents manipulation or unexpected high charges).
-  const priceIncrease = realPrice - expectedPrice;
-  const maxAllowedIncrease = Math.max(150, expectedPrice * 0.1); // Allow up to 10% or 150 NGN
-  if (priceIncrease > maxAllowedIncrease) {
-    return Response.json(
-      { error: "Price changed — please try again", statusCode: 409 },
-      { status: 409 }
-    );
-  }
+  const realPrice = expectedPrice;
 
   // Atomic deduct — raises exception if balance insufficient
   const { data: newBalance, error: deductError } = await supabaseAdmin
