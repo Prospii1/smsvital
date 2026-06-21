@@ -13,12 +13,17 @@ export default function AdminWallet() {
   const [filter, setFilter] = useState("all");
 
   const [netBalance, setNetBalance] = useState<number>(0);
+  const [totalSpent, setTotalSpent] = useState<number>(0);
 
   useEffect(() => {
     fetch("/api/admin/transactions")
       .then(r => r.json())
       .then(d => {
-        if (Array.isArray(d.txns)) { setTxns(d.txns); setNetBalance(d.netBalance ?? 0); }
+        if (Array.isArray(d.txns)) {
+          setTxns(d.txns);
+          setNetBalance(d.netBalance ?? 0);
+          setTotalSpent(d.totalSpent ?? 0);
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -35,8 +40,7 @@ export default function AdminWallet() {
     return true;
   });
 
-  const totalIn  = txns.filter((t: any) => t.t === "topup").reduce((s: number, t: any) => s + Math.abs(t.amt), 0);
-  const totalOut = txns.filter((t: any) => t.t === "purchase").reduce((s: number, t: any) => s + Math.abs(t.amt), 0);
+  const totalIn = txns.filter((t: any) => t.t === "topup").reduce((s: number, t: any) => s + Math.abs(t.amt), 0);
 
   return (
     <div style={{ padding: "28px 32px" }}>
@@ -49,8 +53,8 @@ export default function AdminWallet() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 24 }}>
         {[
-          { label: "Total funded",  value: loading ? "…" : fmt(totalIn),     color: "var(--ok)"            },
-          { label: "Total spent",   value: loading ? "…" : fmt(totalOut),    color: "var(--txt)"           },
+          { label: "Total funded",  value: loading ? "…" : fmt(totalIn),      color: "var(--ok)"            },
+          { label: "Total spent",   value: loading ? "…" : fmt(totalSpent),  color: "var(--txt)"           },
           { label: "Net balance",   value: loading ? "…" : fmt(netBalance),  color: "var(--accent-bright)" },
         ].map(s => (
           <div key={s.label} className="card" style={{ padding: "16px 18px", borderRadius: 14 }}>

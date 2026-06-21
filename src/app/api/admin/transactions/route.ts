@@ -5,7 +5,7 @@ export async function GET() {
   const auth = await requireAdmin();
   if (auth instanceof Response) return auth;
 
-  const [{ data: rows, error }, { data: profiles }] = await Promise.all([
+  const [{ data: rows, error }, { data: profiles }, { data: receivedOrders }] = await Promise.all([
     supabaseAdmin
       .from("transactions")
       .select("data, created_at")
@@ -13,6 +13,10 @@ export async function GET() {
     supabaseAdmin
       .from("profiles")
       .select("balance"),
+    supabaseAdmin
+      .from("orders")
+      .select("data")
+      .eq("data->>status", "received"),
   ]);
 
   if (error) {
@@ -32,8 +36,8 @@ export async function GET() {
     };
   });
 
-  // Net balance = sum of all user wallet balances right now
   const netBalance = (profiles ?? []).reduce((s: number, p: any) => s + Number(p.balance ?? 0), 0);
+  const totalSpent = (receivedOrders ?? []).reduce((s: number, o: any) => s + Number(o.data?.price ?? 0), 0);
 
-  return Response.json({ txns, netBalance });
+  return Response.json({ txns, netBalance, totalSpent });
 }
