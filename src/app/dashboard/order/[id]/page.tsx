@@ -158,7 +158,7 @@ export default function LiveOrderScreen() {
         if (data.expired) {
           clearInterval(interval);
           setPhase("expired");
-          setOrders((os: any[]) => os.map(o => o.id === id ? { ...o, status: "expired" } : o));
+          setOrders((os: any[]) => os.filter(o => o.id !== id));
           if (data.newBalance !== undefined) {
             setBalance(data.newBalance);
             setTxns((ts: any[]) => [data.txn, ...ts]);
@@ -182,7 +182,7 @@ export default function LiveOrderScreen() {
   useEffect(() => {
     if (isDemo || phase !== "waiting" || secs < (TOTAL + 15) || !order?.id) return;
     setPhase("expired");
-    setOrders((os: any[]) => os.map(o => o.id === id ? { ...o, status: "expired" } : o));
+    setOrders((os: any[]) => os.filter(o => o.id !== id));
     pushToast({ kind: "bad", msg: "Order timed out — number banned, refunding…" });
     fetch(`/api/sms/ban/${order.id}`, { method: "DELETE" })
       .then(r => r.json())
@@ -222,7 +222,7 @@ export default function LiveOrderScreen() {
 
   const cancel = async () => {
     if (isDemo) {
-      setOrders((os: any[]) => os.map(o => o.id === id ? { ...o, status: "cancelled" } : o));
+      setOrders((os: any[]) => os.filter(o => o.id !== id));
       setBalance((b: number) => Math.round((b + order.price) * 100) / 100);
       pushToast({ kind: "bad", icon: "x", msg: "Order cancelled · refunded" });
       router.push("/dashboard/orders");
@@ -232,7 +232,7 @@ export default function LiveOrderScreen() {
       const res = await fetch(`/api/sms/cancel/${order.id}`, { method: "DELETE" });
       const data = await res.json();
       if (data.ok) {
-        setOrders((os: any[]) => os.map(o => o.id === id ? { ...o, status: "cancelled" } : o));
+        setOrders((os: any[]) => os.filter(o => o.id !== id));
         setBalance(data.newBalance);
         setTxns((ts: any[]) => [data.txn, ...ts]);
         pushToast({ kind: "bad", icon: "x", msg: "Order cancelled · refunded" });

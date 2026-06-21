@@ -83,8 +83,12 @@ export async function GET(
       .select("id");
 
     if (claimed && claimed.length > 0) {
-      const { data: newBalance } = await supabaseAdmin
+      const { data: newBalance, error: creditError } = await supabaseAdmin
         .rpc("credit_balance", { user_id: authUser.userId, amount: price });
+
+      if (creditError) {
+        console.error(`CRITICAL: poll refund credit failed. orderId=${orderId} user=${authUser.userId} amount=${price}`, creditError);
+      }
 
       const txnId = "TXN-REF-" + orderId.slice(4);
       const txn = {
@@ -97,7 +101,9 @@ export async function GET(
       };
       await supabaseAdmin
         .from("transactions")
-        .insert({ id: txnId, user_id: authUser.userId, data: txn, created_at: new Date().toISOString() });
+        .upsert({ id: txnId, user_id: authUser.userId, data: txn, created_at: new Date().toISOString() }, { ignoreDuplicates: true });
+
+      await supabaseAdmin.from("orders").delete().eq("id", orderId);
 
       return Response.json({ expired: true, newBalance, txn }, { status: 200 });
     }

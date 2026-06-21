@@ -56,6 +56,8 @@ export async function POST() {
         created_at: new Date().toISOString(),
       }, { ignoreDuplicates: true });
 
+    await supabaseAdmin.from("orders").delete().eq("id", order.id);
+
     refundCount++;
     refundedAmount += price;
   }

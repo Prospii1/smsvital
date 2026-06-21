@@ -62,8 +62,9 @@ export async function DELETE(
   };
   await supabaseAdmin
     .from("transactions")
-    .insert({ id: txnId, user_id: authUser.userId, data: txn, created_at: new Date().toISOString() })
-    .then(() => {});
+    .upsert({ id: txnId, user_id: authUser.userId, data: txn, created_at: new Date().toISOString() }, { ignoreDuplicates: true });
+
+  await supabaseAdmin.from("orders").delete().eq("id", orderId);
 
   return Response.json({ ok: true, newBalance, txn });
 }

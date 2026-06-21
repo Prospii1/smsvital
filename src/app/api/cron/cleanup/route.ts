@@ -108,6 +108,8 @@ export async function GET(request: Request) {
         created_at: new Date().toISOString(),
       }, { ignoreDuplicates: true });
 
+    await supabaseAdmin.from("orders").delete().eq("id", order.id);
+
     refundCount++;
     refundedAmount += price;
     console.log(`Cron cleanup: refunded ${price} to user ${userId} for order ${order.id}`);
