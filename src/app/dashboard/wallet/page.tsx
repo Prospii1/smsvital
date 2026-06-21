@@ -309,6 +309,9 @@ export default function WalletScreen() {
           {txns.map((tx: any) => {
             const pos = tx.amt >= 0;
             const ic  = tx.t === "topup" ? "plus" : tx.t === "refund" ? "refresh" : "sms";
+            const when = tx.created_at
+              ? new Date(tx.created_at).toLocaleString("en-NG", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+              : tx.when;
             return (
               <div key={tx.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 4px", borderBottom: "1px solid var(--line)" }}>
                 <div style={{ width: 36, height: 36, borderRadius: 11, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
@@ -317,7 +320,7 @@ export default function WalletScreen() {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.label}</div>
-                  <div className="mono" style={{ fontSize: 10.5, color: "var(--txt-3)", marginTop: 1 }}>{tx.ref} · {tx.when}</div>
+                  <div className="mono" style={{ fontSize: 10.5, color: "var(--txt-3)", marginTop: 1 }}>{tx.ref} · {when}</div>
                 </div>
                 <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: pos ? "var(--ok)" : "var(--txt)" }}>
                   {pos ? "+" : ""}{fmt(Math.abs(tx.amt))}

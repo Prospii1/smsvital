@@ -65,10 +65,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setBalanceState(d.newBalance);
           Promise.all([
             supabase.from("orders").select("data, created_at").eq("user_id", userId).order("created_at", { ascending: false }),
-            supabase.from("transactions").select("data").eq("user_id", userId).order("created_at", { ascending: false }),
+            supabase.from("transactions").select("data, created_at").eq("user_id", userId).order("created_at", { ascending: false }),
           ]).then(([{ data: newOrders }, { data: newTxns }]) => {
             setOrdersState(newOrders?.map((r: any) => ({ ...r.data, created_at: r.created_at })) ?? []);
-            setTxnsState(newTxns?.map((r: any) => r.data) ?? []);
+            setTxnsState(newTxns?.map((r: any) => ({ ...r.data, created_at: r.created_at })) ?? []);
           });
         }
       })
@@ -83,14 +83,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const [{ data: profile }, { data: ordersData }, { data: txnsData }] = await Promise.all([
       supabase.from("profiles").select("balance, firstname, lastname").eq("id", userId).maybeSingle(),
       supabase.from("orders").select("data, created_at").eq("user_id", userId).order("created_at", { ascending: false }),
-      supabase.from("transactions").select("data").eq("user_id", userId).order("created_at", { ascending: false }),
+      supabase.from("transactions").select("data, created_at").eq("user_id", userId).order("created_at", { ascending: false }),
     ]);
 
     setBalanceState(profile?.balance ?? 0);
     setFirstname(profile?.firstname ?? "");
     setLastname(profile?.lastname ?? "");
     setOrdersState(ordersData?.map((r: any) => ({ ...r.data, created_at: r.created_at })) ?? []);
-    setTxnsState(txnsData?.map((r: any) => r.data) ?? []);
+    setTxnsState(txnsData?.map((r: any) => ({ ...r.data, created_at: r.created_at })) ?? []);
 
     runCleanup();
 
